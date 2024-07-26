@@ -179,6 +179,10 @@ namespace Unity.DemoTeam.Hair
 			var c = 0.5f * (nodePtr->data.max + nodePtr->data.min);
 			var q = abs(p - c) - b;
 			var d = length(max(q, 0.0f)) + min(max(q.x, max(q.y, q.z)), 0.0f);
+		
+			// fix: clamp the signed distance so it doesn't ever go negative.
+			// see https://github.com/Unity-Technologies/com.unity.demoteam.hair/issues/98
+			d = max(0, d);
 
 			return (d * d);
 		}
