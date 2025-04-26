@@ -26,16 +26,16 @@ namespace Unity.DemoTeam.Hair
 			URP,
 		}
 
-		public static PipelineLabel GetPipelineLabel(RenderPipeline pipeline)
+		public static PipelineLabel GetPipelineLabel(RenderPipelineAsset pipeline)
 		{
 			if (pipeline != null)
 			{
 #if HAS_PACKAGE_UNITY_HDRP
-				if (pipeline is HDRenderPipeline)
+				if (pipeline is HDRenderPipelineAsset)
 					return PipelineLabel.HDRP;
 #endif
 #if HAS_PACKAGE_UNITY_URP
-				if (pipeline is UniversalRenderPipeline)
+				if (pipeline is UniversalRenderPipelineAsset)
 					return PipelineLabel.URP;
 #endif
 
@@ -45,7 +45,7 @@ namespace Unity.DemoTeam.Hair
 			return PipelineLabel.Builtin;
 		}
 
-		public static Shader GetPipelineDefaultShader(RenderPipeline pipeline) => GetPipelineDefaultShader(GetPipelineLabel(pipeline));
+		public static Shader GetPipelineDefaultShader(RenderPipelineAsset pipeline) => GetPipelineDefaultShader(GetPipelineLabel(pipeline));
 		public static Shader GetPipelineDefaultShader(PipelineLabel pipelineLabel)
 		{
 			switch (pipelineLabel)
@@ -59,7 +59,7 @@ namespace Unity.DemoTeam.Hair
 			return HairSimResources.Load().defaultCustom;
 		}
 
-		public static Material GetPipelineDefaultMaterial(RenderPipeline pipeline) => GetPipelineDefaultMaterial(GetPipelineLabel(pipeline));
+		public static Material GetPipelineDefaultMaterial(RenderPipelineAsset pipeline) => GetPipelineDefaultMaterial(GetPipelineLabel(pipeline));
 		public static Material GetPipelineDefaultMaterial(PipelineLabel pipelineLabel)
 		{
 			var mat = s_defaultMaterial[(int)pipelineLabel];
@@ -77,7 +77,7 @@ namespace Unity.DemoTeam.Hair
 
 		public static Material GetCurrentPipelineDefault()
 		{
-			return GetPipelineDefaultMaterial(RenderPipelineManager.currentPipeline);
+			return GetPipelineDefaultMaterial(GraphicsSettings.currentRenderPipeline);
 		}
 
 		public static bool AnyPassPendingCompilation(Material material)
