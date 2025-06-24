@@ -5,6 +5,7 @@
 //#define DEBUG_LOD_SELECTION_POST
 
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Experimental.Rendering;
@@ -13,6 +14,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Profiling;
 using Unity.Mathematics;
+using UnityEngine.Pool;
 
 namespace Unity.DemoTeam.Hair
 {
@@ -1497,7 +1499,14 @@ namespace Unity.DemoTeam.Hair
 			PushConstantBufferData(cmd, volumeData.buffers.VolumeCBufferEnvironment, volumeConstantsEnvironment);
 		}
 
-		public static void PushVolumeEnvironment(CommandBuffer cmd, ref VolumeData volumeData, in SettingsEnvironment settingsEnvironment, int stepCount, float frameFracHi)
+		// A struct that can be used with DOTS code to represent hair boundaries, but can't support SDF boundaries.
+		public struct ShapeHairBoundary
+		{
+			public HairBoundary.RuntimeShape Shape;
+			public Matrix4x4 Transform;
+		}
+
+		public static void PushVolumeEnvironment(CommandBuffer cmd, ref VolumeData volumeData, in SettingsEnvironment settingsEnvironment, int stepCount, float frameFracHi, NativeList<ShapeHairBoundary>? overrideBoundaries = null)
 		{
 			ref var volumeConstantsScene = ref volumeData.constantsEnvironment;
 			ref var volumeTextures = ref volumeData.textures;
@@ -1527,7 +1536,40 @@ namespace Unity.DemoTeam.Hair
 
 					// gather boundaries
 					//TODO expose or always enable the volumeSort option which sorts active boundaries by distance
-					var boundaryList = SpatialComponentFilter<HairBoundary, HairBoundary.RuntimeData, HairBoundaryProxy>.Gather(settingsEnvironment.boundaryResident, settingsEnvironment.boundaryCapture, GetVolumeBounds(volumeData), settingsEnvironment.boundaryCaptureLayer, volumeSort: false, (settingsEnvironment.boundaryCaptureMode == SettingsEnvironment.BoundaryCaptureMode.IncludeColliders));
+					List<HairBoundary.RuntimeData> boundaryList;
+					
+					PooledObject<List<HairBoundary.RuntimeData>> guard = default;
+					
+					if (overrideBoundaries == null)
+					{
+						boundaryList = SpatialComponentFilter<HairBoundary, HairBoundary.RuntimeData, HairBoundaryProxy>
+							.Gather(settingsEnvironment.boundaryResident,
+								settingsEnvironment.boundaryCapture,
+								GetVolumeBounds(volumeData),
+								settingsEnvironment.boundaryCaptureLayer,
+								volumeSort: false,
+								(settingsEnvironment.boundaryCaptureMode ==
+								 SettingsEnvironment.BoundaryCaptureMode.IncludeColliders));
+					}
+					else
+					{
+						guard = CollectionPool<List<HairBoundary.RuntimeData>, HairBoundary.RuntimeData>.Get(out boundaryList);
+						int i = 0;
+						foreach (var b in overrideBoundaries)
+						{
+							boundaryList.Add(new HairBoundary.RuntimeData()
+							{
+								shape = b.Shape,
+								type = HairBoundary.RuntimeData.Type.Shape,
+								xform = new HairBoundary.RuntimeTransform()
+								{
+									handle = i++,
+									matrix = b.Transform
+								}
+							});
+						}
+					}
+
 					var boundaryCountDiscrete = 0;
 					var boundaryCountCapsule = 0;
 					var boundaryCountSphere = 0;
@@ -1714,6 +1756,11 @@ namespace Unity.DemoTeam.Hair
 
 					volumeData.boundaryCount = boundaryCount;
 					volumeData.boundaryCountDiscard = boundaryList.Count - boundaryCount;
+
+					if (overrideBoundaries != null)
+					{
+						(guard as IDisposable).Dispose();
+					}
 
 					/* TODO remove
 					fixed (void* outShape = volumeConstantsScene._CB_BoundaryShape)
