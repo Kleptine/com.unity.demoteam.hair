@@ -274,8 +274,10 @@ float2 GetSurfaceUV(const float2 tubularUV)
 	return surfaceUV;
 }
 
-HairVertexData GetHairVertexWS(const HairVertexID id, const HairVertexModifiers m)
+HairVertexData GetHairVertexWS(HairVertexID id, const HairVertexModifiers m)
 {
+	id.strandIndex = _RenderStrandIndices[id.strandIndex];
+	
 	DECLARE_STRAND(id.strandIndex);
 
 	// i: The particle index for this vertex's particle. Can index into particle buffers like _ParticlePosition.

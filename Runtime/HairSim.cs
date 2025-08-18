@@ -278,6 +278,8 @@ namespace Unity.DemoTeam.Hair
 				changed |= CreateBuffer(ref solverBuffers._LODGuideIndex, "LODGuideIndex", Mathf.Max(1, lodCount) * strandCount, particleStrideIndex);
 				changed |= CreateBuffer(ref solverBuffers._LODGuideCarry, "LODGuideCarry", Mathf.Max(1, lodCount) * strandCount, particleStrideScalar);
 				changed |= CreateBuffer(ref solverBuffers._LODGuideReach, "LODGuideReach", Mathf.Max(1, lodCount) * strandCount, particleStrideScalar);
+				
+				changed |= CreateBuffer(ref solverBuffers._RenderStrandIndices, "RenderStrandIndices", strandCount, sizeof(uint));
 
 				CreateReadbackBuffer(ref solverData.buffersReadback._SolverLODStage, solverBuffers._SolverLODStage);
 #if DEBUG_LOD_SELECTION
@@ -425,6 +427,7 @@ namespace Unity.DemoTeam.Hair
 
 			ReleaseBuffer(ref solverBuffers._StagingVertex);
 			ReleaseBuffer(ref solverBuffers._StagingVertexPrev);
+			ReleaseBuffer(ref solverBuffers._RenderStrandIndices);
 
 			ReleaseReadbackBuffer(ref solverData.buffersReadback._SolverLODStage);
 #if DEBUG_LOD_SELECTION
@@ -559,6 +562,7 @@ namespace Unity.DemoTeam.Hair
 
 			target.BindComputeBuffer(SolverData.s_bufferIDs._StagingVertex, solverBuffers._StagingVertex);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._StagingVertexPrev, solverBuffers._StagingVertexPrev);
+			target.BindComputeBuffer(SolverData.s_bufferIDs._RenderStrandIndices, solverBuffers._RenderStrandIndices);
 
 			target.BindKeyword("LAYOUT_INTERLEAVED", solverKeywords.LAYOUT_INTERLEAVED);
 			target.BindKeyword("LIVE_POSITIONS_3", solverKeywords.LIVE_POSITIONS_3);

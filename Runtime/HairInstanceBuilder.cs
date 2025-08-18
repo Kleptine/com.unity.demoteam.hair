@@ -275,6 +275,7 @@ namespace Unity.DemoTeam.Hair
 				data.indexFormat = IndexFormat.UInt32;
 				data.indexStride = sizeof(uint);
 
+				// Write the raw vertex byte data buffer. 
 				data.vertices = new NativeArray<byte>(data.vertexCount * data.vertexStride, allocator, NativeArrayOptions.UninitializedMemory);
 				{
 					switch (data.vertexFormat)

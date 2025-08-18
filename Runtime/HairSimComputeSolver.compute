@@ -2243,6 +2243,10 @@ void KStaging(
 	}
 
 	StoreStagingPosition(strandParticleEnd - strandParticleStride, p0, lodBounds);
+
+	// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
+	// to determine which strands to render.
+	_RenderStrandIndices[strandIndex] = strandIndex;
 }
 
 struct CatmullRomParticle

@@ -39,6 +39,12 @@
 #define HAIRSIM_RENDERDATA ByteAddressBuffer
 #endif
 
+#if HAIRSIM_WRITEABLE_SOLVERDATA
+#define HAIRSIM_RENDER RWStructuredBuffer
+#else
+#define HAIRSIM_RENDER StructuredBuffer
+#endif
+
 StructuredBuffer<float2> _RootUV;						// xy: root uv
 StructuredBuffer<float4> _RootScale;					// xy: root scale (length, diameter normalized to maximum within group), z: tip scale offset, w: tip scale
 
@@ -75,6 +81,7 @@ StructuredBuffer<float> _LODGuideReach;					// x: lod index * strand count + str
 
 HAIRSIM_RENDERDATA _StagingVertex;						// xyz: position (uncompressed) || xy: position (compressed)
 HAIRSIM_RENDERDATA _StagingVertexPrev;					// xyz: ...
+HAIRSIM_RENDER<uint> _RenderStrandIndices;				// x: the strand index to render, mapped by render strand id.
 
 //-------------
 // volume data

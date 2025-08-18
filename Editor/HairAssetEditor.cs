@@ -545,6 +545,7 @@ namespace Unity.DemoTeam.Hair
 										previewMaterial.SetBuffer(bufferIDs._LODGuideReach, previewBuffers._LODGuideReach);
 										previewMaterial.SetBuffer(bufferIDs._StagingVertex, previewBuffers._StagingVertex);
 										previewMaterial.SetBuffer(bufferIDs._StagingVertexPrev, previewBuffers._StagingVertex);
+										previewMaterial.SetBuffer(bufferIDs._RenderStrandIndices, previewBuffers._RenderStrandIndices);
 										previewMaterial.SetBuffer(bufferIDs._SolverLODStage, previewBuffers._SolverLODStage);
 										previewMaterial.SetBuffer(bufferIDs._SolverLODRange, previewBuffers._SolverLODRange);
 									}
