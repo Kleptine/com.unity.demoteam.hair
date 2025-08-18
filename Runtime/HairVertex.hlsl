@@ -123,11 +123,23 @@ int _DecodeVertexWidth;
 int _DecodeVertexComponentValue;
 int _DecodeVertexComponentWidth;
 
+// The hair mesh renders with only a single vertex attribute stream bound to TEXCOORD0.
+// This specifies one packed float4 per mesh vertex, which contains the ids for (strand, particle, facet). The facet
+// is just the index of the vertex around the cross section (ie. 0 or 1 for a strip mesh).
+//
+// This packed format is much more efficient, and avoids wasting bandwidth sending position data we'll just throw away.
 struct HairVertexID
 {
+	// The index of the strand within our per-strand buffers. ie. _LODGroupIndex
 	uint strandIndex;
+
+	// The particle index within the strand. ie. 0..N-1 where N is the number of particles in the strand.
 	uint vertexIndex;
+
+	// The numeric index within the cross section of the particle. 0 for lines, 0|1 for strips, 0|1|2|3 for tubes.
 	uint vertexFacet;
+
+	// The 0..1 float in progression around the cross section. Valid for all strand shapes, not just tubes.
 	float2 tubularUV;
 };
 
@@ -189,6 +201,11 @@ static const HairVertexData s_defaultHairVertexData =
 	/* float3 strandIndexColor; */ float3(0.5, 0.5, 0.5),
 };
 
+// The hair mesh renders with only a single vertex attribute stream bound to TEXCOORD0.
+// This specifies one packed float4 per mesh vertex, which contains the ids for (strand, particle, facet). The facet
+// is just the index of the vertex around the cross section (ie. 0 or 1 for a strip mesh).
+//
+// This packed format is much more efficient, and avoids wasting bandwidth sending position data we'll just throw away.
 HairVertexID DecodeHairVertexID(float4 packedID)
 {
 	HairVertexID id;
@@ -261,19 +278,26 @@ HairVertexData GetHairVertexWS(const HairVertexID id, const HairVertexModifiers 
 {
 	DECLARE_STRAND(id.strandIndex);
 
+	// i: The particle index for this vertex's particle. Can index into particle buffers like _ParticlePosition.
 	const uint i = strandParticleBegin + id.vertexIndex * strandParticleStride;
 	const uint i_next = i + strandParticleStride;
 	const uint i_prev = i - strandParticleStride;
 	const uint i_head = strandParticleBegin;
 	const uint i_tail = strandParticleEnd - strandParticleStride;
 
+	// The bounds for the entire hair group this strand is a part of.
 	const LODBounds lodBounds = _Bounds[_GroupBoundsIndex];
 	const LODBounds lodBoundsPrev = _BoundsPrev[_GroupBoundsIndex];
 
+	// p: The position of this particle.
+	// r0: The vector difference from the previous particle in the strand.
+	// r1: The vector difference to the next particle in the strand.
+	// For head and tail particles, we reuse the difference vector from up the strand.
 	float3 p = LoadPosition(i, lodBounds);
 	float3 r0 = (i == i_head) ? LoadPosition(i_next, lodBounds) - p : p - LoadPosition(i_prev, lodBounds);
 	float3 r1 = (i == i_tail) ? r0 /* .......................... */ : LoadPosition(i_next, lodBounds) - p;
 
+	// Gets the positions in camera-relative world space, if we're using HDRP camera relative rendering.
 	float3 curvePositionRWS = HAIR_VERTEX_IMPL_WS_POS_TO_RWS(p);
 	float3 curvePositionRWSPrev = HAIR_VERTEX_IMPL_WS_POS_TO_RWS(LoadPositionPrev(i, lodBoundsPrev));
 	float3 curveTangentWS = (r0 + r1); // approx tangent to curve

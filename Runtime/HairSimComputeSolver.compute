@@ -973,6 +973,8 @@ void WriteIndirectTopology(uint index, uint2 args)
 	_SolverLODTopology[index * 5 + 4] = 0;		// == startInstance
 }
 
+// Fills out the _SolveLODTopology buffer, which contains the instanced dispatch commands for the final strand
+// rendering draw call. This runs after the LOD selection is done, but before the vertex shader and actual rendering.
 [numthreads(1, 1, 1)]
 void KLODSelectionPost(
 	uint3 groupIdx : SV_GroupID,
@@ -2198,6 +2200,15 @@ void KInterpolatePromote(
 
 #if F_STAGING
 
+// The staging kernel takes the output of the solver and prepares it into a byte buffer (_StagingVertex) for rendering.
+// Despite the name 'vertex' this does not contain the vertices of the mesh, it's the vertices of the strand (aka. particles).
+// When CatmullRom subdivision is enabled, these 'strand vertices' will be different than the simulated particles, hence
+// the different name.
+//
+// The use a of a byte buffer for staging vertices also allows compressing the final positions used to render. This can be
+// configured with _StagingVertexFormat. More compressed vertices result in lower memory bandwidth at the cost of precision.
+//
+// A history of the _StagingVertex buffer is copied into the _StagingVertexPrev buffer, and is used to write motion vectors.
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KStaging(
 	uint3 groupIdx : SV_GroupID,
@@ -2219,6 +2230,7 @@ void KStaging(
 	float3 p0 = _ParticlePosition[strandParticleBegin].xyz;
 	float3 r0 = rootDir;
 
+	// Loops through each particle in the strand and calculates the normalized direction to the next particle in the chain.
 	for (uint i = strandParticleBegin; i != strandParticleEnd - strandParticleStride; i += strandParticleStride)
 	{
 		float3 p1 = _ParticlePosition[i + strandParticleStride].xyz;
