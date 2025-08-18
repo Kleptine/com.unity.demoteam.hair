@@ -82,6 +82,7 @@ StructuredBuffer<float> _LODGuideReach;					// x: lod index * strand count + str
 HAIRSIM_RENDERDATA _StagingVertex;						// xyz: position (uncompressed) || xy: position (compressed)
 HAIRSIM_RENDERDATA _StagingVertexPrev;					// xyz: ...
 HAIRSIM_RENDER<uint> _RenderStrandIndices;				// x: the strand index to render, mapped by render strand id.
+HAIRSIM_RENDER<uint> _RenderStrandCount;				// size=1, the count of strands to render from the _RenderStrandIndices buffer.
 
 //-------------
 // volume data

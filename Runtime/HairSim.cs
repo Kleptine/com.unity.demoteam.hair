@@ -23,6 +23,7 @@ namespace Unity.DemoTeam.Hair
 	public static partial class HairSim
 	{
 		static bool s_initialized = false;
+		private static uint[] s_defaultCount = { 0 };
 
 		static ComputeShader s_solverCS;
 		static Material s_solverRootsMat;
@@ -280,6 +281,7 @@ namespace Unity.DemoTeam.Hair
 				changed |= CreateBuffer(ref solverBuffers._LODGuideReach, "LODGuideReach", Mathf.Max(1, lodCount) * strandCount, particleStrideScalar);
 				
 				changed |= CreateBuffer(ref solverBuffers._RenderStrandIndices, "RenderStrandIndices", strandCount, sizeof(uint));
+				changed |= CreateBuffer(ref solverBuffers._RenderStrandCount, "RenderStrandCount", 1, sizeof(uint));
 
 				CreateReadbackBuffer(ref solverData.buffersReadback._SolverLODStage, solverBuffers._SolverLODStage);
 #if DEBUG_LOD_SELECTION
@@ -428,6 +430,7 @@ namespace Unity.DemoTeam.Hair
 			ReleaseBuffer(ref solverBuffers._StagingVertex);
 			ReleaseBuffer(ref solverBuffers._StagingVertexPrev);
 			ReleaseBuffer(ref solverBuffers._RenderStrandIndices);
+			ReleaseBuffer(ref solverBuffers._RenderStrandCount);
 
 			ReleaseReadbackBuffer(ref solverData.buffersReadback._SolverLODStage);
 #if DEBUG_LOD_SELECTION
@@ -563,6 +566,7 @@ namespace Unity.DemoTeam.Hair
 			target.BindComputeBuffer(SolverData.s_bufferIDs._StagingVertex, solverBuffers._StagingVertex);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._StagingVertexPrev, solverBuffers._StagingVertexPrev);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._RenderStrandIndices, solverBuffers._RenderStrandIndices);
+			target.BindComputeBuffer(SolverData.s_bufferIDs._RenderStrandCount, solverBuffers._RenderStrandCount);
 
 			target.BindKeyword("LAYOUT_INTERLEAVED", solverKeywords.LAYOUT_INTERLEAVED);
 			target.BindKeyword("LIVE_POSITIONS_3", solverKeywords.LIVE_POSITIONS_3);
@@ -1242,9 +1246,19 @@ namespace Unity.DemoTeam.Hair
 			{
 				CoreUtils.Swap(ref solverData.buffers._StagingVertex, ref solverData.buffers._StagingVertexPrev);
 
+				solverBuffers._RenderStrandCount.SetData(s_defaultCount);
+
 				BindVolumeData(cmd, s_solverCS, stagingKernel, volumeData);
 				BindSolverData(cmd, s_solverCS, stagingKernel, solverData);
 				cmd.DispatchCompute(s_solverCS, stagingKernel, solverData.buffers._SolverLODDispatch, GetSolverLODDispatchOffset(SolverLODDispatch.Staging));
+
+				cmd.RequestAsyncReadback(solverBuffers._RenderStrandCount, request =>
+				{
+					if (Time.frameCount % 120 == 0)
+					{
+						Debug.Log(request.GetData<uint>()[0]);
+					}
+				});
 
 				if (stagingBufferHistoryReset)
 				{

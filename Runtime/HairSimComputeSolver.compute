@@ -31,6 +31,7 @@
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 
+#define F_STAGING 1
 #define HAIRSIM_WRITEABLE_SOLVERINPUT (F_INPUT)
 #define HAIRSIM_WRITEABLE_SOLVERLOD (F_LOD)
 #define HAIRSIM_WRITEABLE_SOLVERINIT (F_INIT)
@@ -2244,9 +2245,14 @@ void KStaging(
 
 	StoreStagingPosition(strandParticleEnd - strandParticleStride, p0, lodBounds);
 
+	uint renderIndex;
+	InterlockedAdd(_RenderStrandCount[0], 1, renderIndex);
+	
 	// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
 	// to determine which strands to render.
-	_RenderStrandIndices[strandIndex] = strandIndex;
+	if (renderIndex < _StrandCount) {
+		_RenderStrandIndices[renderIndex] = strandIndex;
+	}
 }
 
 struct CatmullRomParticle

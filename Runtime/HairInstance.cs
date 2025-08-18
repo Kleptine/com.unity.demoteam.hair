@@ -8,6 +8,7 @@ using UnityEngine.Rendering;
 using UnityEngine.XR;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using UnityEngine.Apple;
 
 #if HAS_PACKAGE_UNITY_HDRP
 using UnityEngine.Rendering.HighDefinition;
@@ -1392,14 +1393,34 @@ namespace Unity.DemoTeam.Hair
 			return mat;
 		}
 
+		private static bool takeCapture = false;
+		
+#if UNITY_EDITOR
+		[UnityEditor.MenuItem("Pontoco/Tools/Capture to XCODE")]
+		public static void TakeCapture()
+		{
+			takeCapture = true;
+		}
+#endif
+
 		public void DispatchUpdate()
 		{
+			if (takeCapture)
+			{
+				FrameCapture.BeginCaptureToXcode();
+			}
 			using (var cmd = HairSimUtility.ScopedCommandBuffer.Get())
 			{
 				if (DispatchUpdate(cmd, CommandBufferExecutionFlags.None, Time.deltaTime))
 				{
 					Graphics.ExecuteCommandBuffer(cmd);
 				}
+			}
+
+			if (takeCapture)
+			{
+				FrameCapture.EndCapture();
+				takeCapture = false;
 			}
 		}
 

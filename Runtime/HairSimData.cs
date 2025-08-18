@@ -63,6 +63,7 @@ namespace Unity.DemoTeam.Hair
 				public T _StagingVertex;				// xyz: position (uncompressed) || xy: position (compressed)
 				public T _StagingVertexPrev;			// xyz: ...
 				public T _RenderStrandIndices;			// x: the strand index to render, mapped by render strand id.
+				public T _RenderStrandCount;			// size=1, the count of strands to render from the _RenderStrandIndices buffer.
 			}
 
 			public static SolverTextures<int> s_textureIDs;
