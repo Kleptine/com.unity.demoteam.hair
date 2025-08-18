@@ -976,6 +976,9 @@ void WriteIndirectTopology(uint index, uint2 args)
 
 // Fills out the _SolveLODTopology buffer, which contains the instanced dispatch commands for the final strand
 // rendering draw call. This runs after the LOD selection is done, but before the vertex shader and actual rendering.
+//
+// This kernel writes render commands for all possible types of render topologies (lines, strips, etc), but the CPU
+// render call only issues the final dispatch pointing at the command in this buffer for the correct topology type.
 [numthreads(1, 1, 1)]
 void KLODSelectionPost(
 	uint3 groupIdx : SV_GroupID,
@@ -987,6 +990,7 @@ void KLODSelectionPost(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
+	_SolverLODRange[SOLVERLODRANGE_RENDER].y = _RenderStrandCount[0];
 	uint countRender = _SolverLODRange[SOLVERLODRANGE_RENDER].y;
 	uint countRenderBatchSize = min(countRender, INSTANCING_BATCH_SIZE);
 	uint countRenderBatchCount = (countRender + INSTANCING_BATCH_SIZE - 1) / INSTANCING_BATCH_SIZE;
@@ -2227,6 +2231,7 @@ void KStaging(
 
 	float4 rootFrame = GetRootFrame(strandIndex);
 	float3 rootDir = QMul(rootFrame, float3(0, 1, 0));
+	float3 rootPos = _RootPosition[strandIndex].xyz;
 
 	float3 p0 = _ParticlePosition[strandParticleBegin].xyz;
 	float3 r0 = rootDir;
@@ -2245,13 +2250,31 @@ void KStaging(
 
 	StoreStagingPosition(strandParticleEnd - strandParticleStride, p0, lodBounds);
 
-	uint renderIndex;
-	InterlockedAdd(_RenderStrandCount[0], 1, renderIndex);
+	// Determine visibility for this strand, and only queue it for rendering if it is visible.
+	LODBounds strandBounds;
+	strandBounds.center = rootPos;
+	strandBounds.radius = .1;
+	strandBounds.extent = float3(0, 0, 0);
+	strandBounds.reach = 0;
+	bool isVisible = false;
+	for (uint f = 0; f < _LODFrustumCount; ++f)
+	{
+		if (LODFrustumContains(_LODFrustum[f], strandBounds))
+		{
+			isVisible = true;
+			break;
+		}
+	}	
+
+	if (isVisible) {
+		uint renderIndex;
+		InterlockedAdd(_RenderStrandCount[0], 1, renderIndex);
 	
-	// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
-	// to determine which strands to render.
-	if (renderIndex < _StrandCount) {
-		_RenderStrandIndices[renderIndex] = strandIndex;
+		// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
+		// to determine which strands to render.
+		if (renderIndex < _StrandCount) {
+			_RenderStrandIndices[renderIndex] = strandIndex;
+		}
 	}
 }
 
