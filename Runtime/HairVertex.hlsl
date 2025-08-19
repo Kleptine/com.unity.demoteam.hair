@@ -310,8 +310,8 @@ HairVertexData GetHairVertexWS(HairVertexID id, const HairVertexModifiers m)
 	{
 		// apply clustering lod
 		{
-			LODFrustum lodFrustum = MakeLODFrustumForCurrentCamera();
-			float curveCoverage = CalculateLODCoverage(strandIndex, radius, curvePositionRWS, lodFrustum, m.lodScale, m.lodBias);
+			LODFrustum lodFrustumRWS = MakeLODFrustumForCurrentCamera();
+			float curveCoverage = CalculateLODCoverage(strandIndex, radius, curvePositionRWS, lodFrustumRWS, m.lodScale, m.lodBias);
 
 			// lod subpixel discard
 			{

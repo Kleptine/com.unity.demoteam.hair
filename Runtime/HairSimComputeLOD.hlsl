@@ -163,10 +163,15 @@ LODIndices ResolveLODIndices(const float lodValue)
 	return lodDesc;
 }
 
-float CalculateLODCoverage(uint strandIndex, float radius, float3 curvePositionRWS, LODFrustum lodFrustum, float lodScale, float lodBias) {
+// Calculates the amount of screen coverage this strand has, after determining its LOD level.
+// Guide strands at the current LOD level will appear fat and roughly the size of the cluster, whereas strands
+// below the current LOD, within the cluster, will be reduced and hidden.
+//
+// Note that curvePosition and lodFrustum.position must be in the same space. ie. When using camera relative rendering. 
+float CalculateLODCoverage(uint strandIndex, inout float radius, float3 curvePosition, LODFrustum lodFrustum, float lodScale, float lodBias) {
 
 	float curveSpan = 2.0 * radius;
-	float curveDepth = dot(lodFrustum.cameraForward, curvePositionRWS - lodFrustum.cameraPosition);
+	float curveDepth = dot(lodFrustum.cameraForward, curvePosition- lodFrustum.cameraPosition);
 	float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, curveSpan);
 
 	// lod selection
@@ -177,7 +182,7 @@ float CalculateLODCoverage(uint strandIndex, float radius, float3 curvePositionR
 		case RENDERLODSELECTION_AUTOMATIC_PER_SEGMENT:
 			#define ANISOTROPIC_LOD_DENSITY 0
 			#if ANISOTROPIC_LOD_DENSITY
-			float3 curveViewWS = HAIR_VERTEX_IMPL_WS_POS_VIEW_DIR(curvePositionRWS);
+			float3 curveViewWS = HAIR_VERTEX_IMPL_WS_POS_VIEW_DIR(curvePosition);
 			float curveParallel = saturate(abs(dot(normalize_safe(curveTangentWS), curveViewWS)));
 			float curveCoverageA = lerp(curveCoverage, sqrt(curveCoverage), curveParallel);
 			lodDesc = ResolveLODIndices(ResolveLODQuantity(curveCoverageA, _RenderLODCeiling, _RenderLODScale * m.lodScale, _RenderLODBias + m.lodBias));

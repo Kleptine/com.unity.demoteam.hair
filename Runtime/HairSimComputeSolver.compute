@@ -2256,25 +2256,30 @@ void KStaging(
 	strandBounds.radius = .1;
 	strandBounds.extent = float3(0, 0, 0);
 	strandBounds.reach = 0;
-	bool isVisible = false;
+	
+	// Determine if the strand will have any coverage in any camera. If not, don't queue for rendering.
+	float maxCoverage = 0;
 	for (uint f = 0; f < _LODFrustumCount; ++f)
 	{
-		if (LODFrustumContains(_LODFrustum[f], strandBounds))
-		{
-			isVisible = true;
-			break;
+		if (LODFrustumContains(_LODFrustum[f], strandBounds)) {
+			LODFrustum frustum = _LODFrustum[f];
+			float radius = (0.5 * _GroupMaxParticleDiameter) * _RootScale[strandIndex].y;
+			float coverage = CalculateLODCoverage(strandIndex, radius, rootPos,  frustum, 1, 0);
+			maxCoverage = max(coverage, maxCoverage);
 		}
-	}	
+	}
 
-	if (isVisible) {
-		uint renderIndex;
-		InterlockedAdd(_RenderStrandCount[0], 1, renderIndex);
-	
-		// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
-		// to determine which strands to render.
-		if (renderIndex < _StrandCount) {
-			_RenderStrandIndices[renderIndex] = strandIndex;
-		}
+	if (maxCoverage < _RenderLODClipThreshold) {
+		return;
+	}
+
+	uint renderIndex;
+	InterlockedAdd(_RenderStrandCount[0], 1, renderIndex);
+
+	// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
+	// to determine which strands to render.
+	if (renderIndex < _StrandCount) {
+		_RenderStrandIndices[renderIndex] = strandIndex;
 	}
 }
 
