@@ -2264,7 +2264,7 @@ void KStaging(
 		if (LODFrustumContains(_LODFrustum[f], strandBounds)) {
 			LODFrustum frustum = _LODFrustum[f];
 			float radius = (0.5 * _GroupMaxParticleDiameter) * _RootScale[strandIndex].y;
-			float coverage = CalculateLODCoverage(strandIndex, radius, rootPos,  frustum, 1, 0);
+			float coverage = CalculateLODCoverage(strandIndex, radius, rootPos,  frustum, _RenderLODScale, _RenderLODBias);
 			maxCoverage = max(coverage, maxCoverage);
 		}
 	}
