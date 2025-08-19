@@ -26,12 +26,27 @@ namespace Unity.DemoTeam.Hair
 			public Vector4 plane5;
 		};
 
+		/// <summary>
+		/// Represents a bounding shape wrapped around a mass of points. Usually used for LOD culling.
+		/// </summary>
 		[GenerateHLSL(needAccessors = false)]
 		public struct LODBounds
 		{
+			// The world-space center point of the Axis-Aligned Bounding Box (AABB) that encloses a group of hair strands.
 			public Vector3 center;
+			
+			// The extents (half the size) of the AABB along the X, Y, and Z axes from the center.
+			// The AABB is defined by center - extent and center + extent.
 			public Vector3 extent;
+			
+			// The radius of a bounding sphere centered at center that fully encloses the AABB.
+			// It is calculated as the magnitude (length) of the extent vector and is used for fast,
+			// orientation-independent culling and distance checks.
 			public float radius;
+			
+			// The minimum of the half-extents, i.e., the radius of the sphere inside the AABB (inscribed sphere).
+			// This is a conservative measure of the smallest “thickness” of the bounds; useful when you need a
+			// guaranteed in-bounds distance from the center. Computed as min(extent.x, min(extent.y, extent.z)).
 			public float reach;
 		}
 

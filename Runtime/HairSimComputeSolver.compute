@@ -2231,9 +2231,9 @@ void KStaging(
 
 	float4 rootFrame = GetRootFrame(strandIndex);
 	float3 rootDir = QMul(rootFrame, float3(0, 1, 0));
-	float3 rootPos = _RootPosition[strandIndex].xyz;
 
 	float3 p0 = _ParticlePosition[strandParticleBegin].xyz;
+	float3 rootPos = p0;
 	float3 r0 = rootDir;
 
 	// Loops through each particle in the strand and calculates the normalized direction to the next particle in the chain.
@@ -2252,10 +2252,10 @@ void KStaging(
 
 	// Determine visibility for this strand, and only queue it for rendering if it is visible.
 	LODBounds strandBounds;
-	strandBounds.center = rootPos;
-	strandBounds.radius = .1;
-	strandBounds.extent = float3(0, 0, 0);
-	strandBounds.reach = 0;
+	strandBounds.center = (rootPos + p0) / 2.0;
+	strandBounds.radius = length(rootPos - p0) / 2.0;
+	strandBounds.extent = (p0 - rootPos) / 2.0;
+	strandBounds.reach = strandBounds.radius;
 	
 	// Determine if the strand will have any coverage in any camera. If not, don't queue for rendering.
 	float maxCoverage = 0;
