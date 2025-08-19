@@ -150,7 +150,7 @@
 
 	DebugVaryings DebugVert_StrandParticleClusters(uint instanceID : SV_InstanceID, uint vertexID : SV_VertexID)
 	{
-		const LODIndices lodDesc = _SolverLODStage[SOLVERLODSTAGE_PHYSICS];
+		const LODIndices lodDesc = _SolverLODStage[SOLVERLODSTAGE_RENDERING];
 
 		const uint strandIndex = instanceID;
 		const uint strandParticleBegin = strandIndex * _StrandParticleOffset;
@@ -175,12 +175,15 @@
 		if (vertexID & 1)
 		{
 			worldPos = _ParticlePosition[i].xyz;
+		} else {
+			worldPos += float3(0.2,0,0);
 		}
 
 		DebugVaryings output;
 		output.positionCS = FilterClusters(WorldToClip(worldPos), strandIndex, lodDesc);
-		output.pointSize = 1.0;
+		output.pointSize = 20.0;
 		output.color = float4(color, 1.0);
+
 		return output;
 	}
 
@@ -447,8 +450,10 @@
 			ENDHLSL
 		}
 
-		Pass// 7 == STRAND PARTICLE CLUSTERS
+		Pass // 7 == STRAND PARTICLE CLUSTERS
 		{
+			ZTest Off
+			Name "Cluster Debug"
 			HLSLPROGRAM
 
 			#pragma vertex DebugVert_StrandParticleClusters
