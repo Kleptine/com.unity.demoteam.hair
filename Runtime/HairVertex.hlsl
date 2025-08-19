@@ -274,6 +274,7 @@ float2 GetSurfaceUV(const float2 tubularUV)
 	return surfaceUV;
 }
 
+
 HairVertexData GetHairVertexWS(HairVertexID id, const HairVertexModifiers m)
 {
 	id.strandIndex = _RenderStrandIndices[id.strandIndex];
@@ -310,91 +311,7 @@ HairVertexData GetHairVertexWS(HairVertexID id, const HairVertexModifiers m)
 		// apply clustering lod
 		{
 			LODFrustum lodFrustum = MakeLODFrustumForCurrentCamera();
-
-			float curveSpan = 2.0 * radius;
-			float curveDepth = dot(lodFrustum.cameraForward, curvePositionRWS - lodFrustum.cameraPosition);
-			float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, curveSpan);
-
-			// lod selection
-			LODIndices lodDesc;
-			{
-				switch (_RenderLODMethod)
-				{
-					case RENDERLODSELECTION_AUTOMATIC_PER_SEGMENT:
-#define ANISOTROPIC_LOD_DENSITY 0
-#if ANISOTROPIC_LOD_DENSITY
-						float3 curveViewWS = HAIR_VERTEX_IMPL_WS_POS_VIEW_DIR(curvePositionRWS);
-						float curveParallel = saturate(abs(dot(normalize_safe(curveTangentWS), curveViewWS)));
-						float curveCoverageA = lerp(curveCoverage, sqrt(curveCoverage), curveParallel);
-						lodDesc = ResolveLODIndices(ResolveLODQuantity(curveCoverageA, _RenderLODCeiling, _RenderLODScale * m.lodScale, _RenderLODBias + m.lodBias));
-#else
-						lodDesc = ResolveLODIndices(ResolveLODQuantity(curveCoverage, _RenderLODCeiling, _RenderLODScale * m.lodScale, _RenderLODBias + m.lodBias));
-#endif
-						break;
-
-					default:
-						if (m.lodScale == 1.0 && m.lodBias == 0.0)
-						{
-							lodDesc = _SolverLODStage[SOLVERLODSTAGE_RENDERING];
-						}
-						else
-						{
-							lodDesc = ResolveLODIndices(ResolveLODQuantity(_SolverLODStage[SOLVERLODSTAGE_RENDERING].lodValue, _RenderLODCeiling, m.lodScale, m.lodBias));
-						}
-						break;
-				}
-			}
-
-			// lod subpixel accumulation -> cluster centroid
-			{
-				float guideCarryLo = _LODGuideCarry[(lodDesc.lodIndexLo * _StrandCount) + strandIndex];
-				float guideCarryHi = _LODGuideCarry[(lodDesc.lodIndexHi * _StrandCount) + strandIndex];
-				float guideCarry = lerp(guideCarryLo, guideCarryHi, lodDesc.lodBlendFrac);
-
-				float guideReachLo = _LODGuideReach[(lodDesc.lodIndexLo * _StrandCount) + strandIndex] * _GroupScale;
-				float guideReachHi = _LODGuideReach[(lodDesc.lodIndexHi * _StrandCount) + strandIndex] * _GroupScale;
-				float guideReach = lerp(guideReachLo, guideReachHi, lodDesc.lodBlendFrac);
-
-				float guideProjectedCoverageLo = 1.0 - exp(-radius * guideCarryLo / guideReachLo);
-				float guideProjectedCoverageHi = 1.0 - exp(-radius * guideCarryHi / guideReachHi);
-				float guideProjectedCoverage = 1.0 - exp(-radius * guideCarry / guideReach);
-
-#define USE_PASSING_FRACTION 0
-#if USE_PASSING_FRACTION
-				if (_RenderLODMethod == RENDERLODSELECTION_AUTOMATIC_PER_SEGMENT)
-				{
-					//float lodThreshClip = lodClipThreshold;
-					//                    = unitSpanSubpixelDepth / unitSpanClippingDepth;
-					//float lodThreshClipCluster = unitSpanSubpixelDepth / (unitSpanClippingDepth + guideReach * 2);
-					//                           = unitSpanSubpixelDepth / ((unitSpanSubpixelDepth / lodClipThreshold) + guideReach * 2);
-					//                           = (unitSpanSubpixelDepth * lodClipThreshold) / (unitSpanSubpixelDepth + 2 * guideReach * lodClipThreshold);
-
-					float lodThresh = 1.0;
-					float lodThreshClip = max(_RenderLODClipThreshold, 1e-5);
-					float lodThreshClipCluster = (lodFrustum.unitSpanSubpixelDepth * lodThreshClip) / (lodFrustum.unitSpanSubpixelDepth + 2.0 * guideReach * lodThreshClip);
-
-					float farDepth = curveDepth + guideReach;
-					float farLod = saturate(lodDesc.lodValue * (curveDepth / farDepth));
-					float farLodT = saturate((farLod - lodThreshClipCluster) / (lodThresh - lodThreshClipCluster));
-
-#define USE_CIRCULAR_SECTION 1
-#if USE_CIRCULAR_SECTION
-					// replaces t with normalized area of circular section at height 2rt:
-					// A = (acos(1-2*x)-(1-2*x)*2*sqrt(x*(1-x)))/PI
-					farLodT = (acos(1.0 - 2.0 * farLodT) - (1.0 - 2.0 * farLodT) * 2 * sqrt(farLodT * (1.0 - farLodT))) / 3.14159;
-#endif
-
-					radius = lerp((radius + guideReach) * guideProjectedCoverage, radius, farLodT);
-				}
-				else
-#endif
-				{
-					radius = lerp((radius + guideReachLo) * guideProjectedCoverageLo, (radius + guideReachHi) * guideProjectedCoverageHi, lodDesc.lodBlendFrac);
-				}
-
-				curveSpan = 2.0 * radius;
-				curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, curveSpan);
-			}
+			float curveCoverage = CalculateLODCoverage(strandIndex, radius, curvePositionRWS, lodFrustum, m.lodScale, m.lodBias);
 
 			// lod subpixel discard
 			{
