@@ -78,6 +78,15 @@ namespace Unity.DemoTeam.Hair
 			public static ProfilingSampler DrawVolumeData;
 		}
 
+		static class CountersGPU
+		{
+			public static ProfilerCategory HairSimulation = new ("HairSimulation", ProfilerCategoryColor.Render);
+			
+			// Note: This counter may be delayed, because it is set via an async gpu readback. 
+			public static ProfilerCounterValue<int> StagedStrands 
+				= new (HairSimulation, "HairSim.StagedStrands", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame);
+		}
+
 		static class UniformIDs
 		{
 			// solver
@@ -1254,10 +1263,8 @@ namespace Unity.DemoTeam.Hair
 
 				cmd.RequestAsyncReadback(solverBuffers._RenderStrandCount, request =>
 				{
-					if (Time.frameCount % 120 == 0)
-					{
-						Debug.Log(request.GetData<uint>()[0]);
-					}
+					uint v = request.GetData<uint>()[0];
+					CountersGPU.StagedStrands.Value += (int) v;
 				});
 
 				if (stagingBufferHistoryReset)
