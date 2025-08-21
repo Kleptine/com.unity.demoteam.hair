@@ -1186,6 +1186,8 @@ namespace Unity.DemoTeam.Hair
 						rparams.motionVectorMode = meshRenderer.motionVectorGenerationMode;
 						rparams.shadowCastingMode = meshRenderer.shadowCastingMode;
 						rparams.receiveShadows = true;
+						rparams.sceneCullingMask = gameObject.sceneCullingMask;
+						rparams.overrideSceneCullingMask = true;
 #if UNITY_2023_2_OR_NEWER
 						rparams.instanceID = this.GetInstanceID();
 #endif
@@ -1246,6 +1248,8 @@ namespace Unity.DemoTeam.Hair
 					rparams.renderingLayerMask = (uint)layerMaskShadows;
 					rparams.worldBounds = HairSim.GetSolverBounds(solverData, volumeData);
 					rparams.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+					rparams.sceneCullingMask = gameObject.sceneCullingMask;
+					rparams.overrideSceneCullingMask = true;
 				}
 
 				if (enableIndirectShadows)
