@@ -448,6 +448,15 @@ namespace Unity.DemoTeam.Hair
 
 		public static unsafe void BuildRenderMeshStrips(Mesh meshStrips, HairAsset.MemoryLayout memoryLayout, int strandCount, int strandParticleCount, in Bounds bounds)
 		{
+			if (strandParticleCount == 0)
+			{
+				throw new Exception("Cannot build strips with zero particles per strand.");
+			}
+			if (strandCount == 0)
+			{
+				throw new Exception("Cannot build strips with zero strands.");;
+			}
+			
 			var perStripVertices = strandParticleCount * 2;
 			var perStripSegments = strandParticleCount - 1;
 			var perStripTriangles = perStripSegments * 2;
