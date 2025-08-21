@@ -1531,7 +1531,7 @@ namespace Unity.DemoTeam.Hair
 			public Matrix4x4 Transform;
 		}
 
-		public static void PushVolumeEnvironment(CommandBuffer cmd, ref VolumeData volumeData, in SettingsEnvironment settingsEnvironment, int stepCount, float frameFracHi, NativeList<ShapeHairBoundary>? overrideBoundaries = null)
+		public static void PushVolumeEnvironment(CommandBuffer cmd, ref VolumeData volumeData, in SettingsEnvironment settingsEnvironment, int stepCount, float frameFracHi, NativeList<ShapeHairBoundary>? overrideBoundaries = null, NativeList<HairWind.RuntimeData>? overrideEmitters = null)
 		{
 			ref var volumeConstantsScene = ref volumeData.constantsEnvironment;
 			ref var volumeTextures = ref volumeData.textures;
@@ -1580,7 +1580,7 @@ namespace Unity.DemoTeam.Hair
 					{
 						guard = CollectionPool<List<HairBoundary.RuntimeData>, HairBoundary.RuntimeData>.Get(out boundaryList);
 						int i = 0;
-						foreach (var b in overrideBoundaries)
+						foreach (var b in overrideBoundaries.Value)
 						{
 							boundaryList.Add(new HairBoundary.RuntimeData()
 							{
@@ -1828,7 +1828,22 @@ namespace Unity.DemoTeam.Hair
 					var ptrEmitter = (HairWind.RuntimeEmitter*)bufEmitter.GetUnsafePtr();
 
 					// gather emitters
-					var emitterList = SpatialComponentFilter<HairWind, HairWind.RuntimeData, HairWindProxy>.Gather(settingsEnvironment.emitterResident, settingsEnvironment.emitterCapture, GetVolumeBounds(volumeData), settingsEnvironment.emitterCaptureLayer, volumeSort: false, (settingsEnvironment.emitterCaptureMode == SettingsEnvironment.EmitterCaptureMode.IncludeWindZones));
+					List<HairWind.RuntimeData> emitterList;
+					PooledObject<List<HairWind.RuntimeData>> emitterGuard = default;
+
+					if (overrideEmitters == null)
+					{
+						emitterList = SpatialComponentFilter<HairWind, HairWind.RuntimeData, HairWindProxy>.Gather(settingsEnvironment.emitterResident, settingsEnvironment.emitterCapture, GetVolumeBounds(volumeData), settingsEnvironment.emitterCaptureLayer, volumeSort: false, (settingsEnvironment.emitterCaptureMode == SettingsEnvironment.EmitterCaptureMode.IncludeWindZones));
+					}
+					else
+					{
+						emitterGuard = CollectionPool<List<HairWind.RuntimeData>, HairWind.RuntimeData>.Get(out emitterList);
+						foreach (var e in overrideEmitters.Value)
+						{
+							emitterList.Add(e);
+						}
+					}
+
 					var emitterCount = Mathf.Min(emitterList.Count, Conf.MAX_EMITTERS);
 
 					// write constants
@@ -1868,6 +1883,11 @@ namespace Unity.DemoTeam.Hair
 
 					volumeData.emitterCount = emitterCount;
 					volumeData.emitterCountDiscard = emitterList.Count - emitterCount;
+
+					if (overrideEmitters != null)
+					{
+						(emitterGuard as IDisposable).Dispose();
+					}
 				}
 			}
 
