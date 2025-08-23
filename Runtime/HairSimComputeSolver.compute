@@ -2256,6 +2256,12 @@ void KStaging(
 	strandBounds.radius = length(rootPos - p0) / 2.0;
 	strandBounds.extent = (p0 - rootPos) / 2.0;
 	strandBounds.reach = strandBounds.radius;
+
+	// Cull strand if it resides in a non-zero mask cell. Used to hide strands in buildings.
+	float2 tilemaskUV = (rootPos.xz - _StrandTileMaskSizeOffset.zw) / _StrandTileMaskSizeOffset.xy;
+	if (_StrandTileMask.SampleLevel(sampler_StrandTileMask, tilemaskUV, 0).r != 0) {
+		return;
+	}
 	
 	// Determine if the strand will have any coverage in any camera. If not, don't queue for rendering.
 	float maxCoverage = 0;

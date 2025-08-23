@@ -1399,13 +1399,6 @@ namespace Unity.DemoTeam.Hair
 
 		private static bool takeCapture = false;
 		
-#if UNITY_EDITOR
-		[UnityEditor.MenuItem("Pontoco/Tools/Capture to XCODE")]
-		public static void TakeCapture()
-		{
-			takeCapture = true;
-		}
-#endif
 
 		public void DispatchUpdate()
 		{

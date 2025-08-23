@@ -1188,7 +1188,7 @@ namespace Unity.DemoTeam.Hair
 			}
 		}
 
-		public static void PushSolverStaging(CommandBuffer cmd, ref SolverData solverData, in SettingsGeometry settingsGeometry, in SettingsRendering settingsRendering, in VolumeData volumeData)
+		public static void PushSolverStaging(CommandBuffer cmd, ref SolverData solverData, in SettingsGeometry settingsGeometry, in SettingsRendering settingsRendering, in VolumeData volumeData, Texture2D strandTileMask = null, Vector4? strandTileMaskSizeOffset = null)
 		{
 			ref var solverBuffers = ref solverData.buffers;
 			ref var solverConstants = ref solverData.constants;
@@ -1245,6 +1245,10 @@ namespace Unity.DemoTeam.Hair
 
 			// update cbuffer
 			PushConstantBufferData(cmd, solverData.buffers.SolverCBuffer, solverConstants);
+			
+			// push tile mask
+			cmd.SetComputeTextureParam(s_solverCS, SolverKernels.KStaging, Shader.PropertyToID("_StrandTileMask"), strandTileMask != null ? strandTileMask : Texture2D.blackTexture);;
+			cmd.SetComputeVectorParam(s_solverCS, Shader.PropertyToID("_StrandTileMaskSizeOffset"), strandTileMaskSizeOffset ?? new Vector4(1,1,0,0));
 
 			// update staging
 			int stagingKernel = (solverConstants._StagingSubdivision == 0)

@@ -84,6 +84,10 @@ HAIRSIM_RENDERDATA _StagingVertexPrev;					// xyz: ...
 HAIRSIM_RENDER<uint> _RenderStrandIndices;				// x: the strand index to render, mapped by render strand id.
 HAIRSIM_RENDER<uint> _RenderStrandCount;				// size=1, the count of strands to render from the _RenderStrandIndices buffer.
 
+Texture2D _StrandTileMask;								// culls strands that are in tiles with non-zero values
+SamplerState sampler_StrandTileMask;					// sampler state for _StrandTileMask
+float4 _StrandTileMaskSizeOffset;						// worldspace bounds of tile mask texture. xy: tile size, zw: tile offset
+
 //-------------
 // volume data
 
