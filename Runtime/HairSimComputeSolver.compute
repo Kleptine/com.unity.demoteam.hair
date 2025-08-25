@@ -31,7 +31,6 @@
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 
-#define F_STAGING 1
 #define HAIRSIM_WRITEABLE_SOLVERINPUT (F_INPUT)
 #define HAIRSIM_WRITEABLE_SOLVERLOD (F_LOD)
 #define HAIRSIM_WRITEABLE_SOLVERINIT (F_INIT)
