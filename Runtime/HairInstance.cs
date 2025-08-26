@@ -245,7 +245,7 @@ namespace Unity.DemoTeam.Hair
 
 		void LateUpdate()
 		{
-			if (settingsExecutive.updateMode == SettingsExecutive.UpdateMode.BuiltinEvent)
+			if (settingsExecutive.updateMode == SettingsExecutive.UpdateMode.BuiltinEvent && gameObject.sceneCullingMask != 0)
 			{
 				HandlePrerequisite();
 			}
