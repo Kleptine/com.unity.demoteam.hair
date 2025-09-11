@@ -837,8 +837,8 @@ namespace Unity.DemoTeam.Hair
 
 					for (int i = 1; i != info.curveCount; i++)
 					{
-						Mathf.Min(info.curveVertexCountMin, curveVertexCountPtr[i]);
-						Mathf.Max(info.curveVertexCountMax, curveVertexCountPtr[i]);
+						info.curveVertexCountMin = Mathf.Min(info.curveVertexCountMin, curveVertexCountPtr[i]);
+						info.curveVertexCountMax = Mathf.Max(info.curveVertexCountMax, curveVertexCountPtr[i]);
 					}
 				}
 			}
