@@ -38,7 +38,7 @@ namespace Unity.DemoTeam.Hair
 			public float strandLengthValue;
 			[ToggleGroup, Tooltip("Override strand diameter (otherwise supplied by group asset)")]
 			public bool strandDiameter;
-			[ToggleGroupItem, Range(0.01f, 100.0f), Tooltip("Strand diameter (in millimeters)")]
+			[ToggleGroupItem, Range(0.01f, 1000.0f), Tooltip("Strand diameter (in millimeters)")]
 			public float strandDiameterValue;
 			[Range(0.0f, 100.0f), Tooltip("Strand separation margin (in millimeters)")]
 			public float strandSeparation;
