@@ -181,7 +181,10 @@ namespace Unity.DemoTeam.Hair
 				return false;
 
 			if (volumeRT != null)
+			{
 				volumeRT.Release();
+				CoreUtils.Destroy(volumeRT);
+			}
 
 			//Debug.Log("creating volume " + name);
 			volumeRT = new RenderTexture(MakeVolumeDesc(cellCount, cellFormat));
@@ -200,7 +203,10 @@ namespace Unity.DemoTeam.Hair
 				return false;
 
 			if (volumeRT != null)
+			{
 				volumeRT.Release();
+				CoreUtils.Destroy(volumeRT);
+			}
 
 			//Debug.Log("creating volume " + name);
 			volumeRT = new RenderTexture(MakeVolumeDesc(cellCount, cellFormat));
@@ -214,10 +220,11 @@ namespace Unity.DemoTeam.Hair
 
 		public static void ReleaseVolume(ref Texture volume)
 		{
-			var volumeRT = volume as RenderTexture;
-			if (volumeRT != null)
+			if (volume != null)
 			{
+				var volumeRT = (RenderTexture)volume;
 				volumeRT.Release();
+				CoreUtils.Destroy(volumeRT);
 				volume = null;
 			}
 		}
