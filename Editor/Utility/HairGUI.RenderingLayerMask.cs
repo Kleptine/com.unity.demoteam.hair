@@ -6,15 +6,15 @@ namespace Unity.DemoTeam.Hair
 {
 	public static partial class HairGUILayout
 	{
-		public static void RenderingLayerMask(Rect position, GUIContent label, SerializedProperty property, params GUILayoutOption[] options)
-		{
-			RenderingLayerMask(EditorGUILayout.GetControlRect(options), label, property);
-		}
-
-		public static int RenderingLayerMask(Rect position, GUIContent label, int mask, params GUILayoutOption[] options)
-		{
-			return RenderingLayerMask(EditorGUILayout.GetControlRect(options), label, mask);
-		}
+		// public static void RenderingLayerMask(Rect position, GUIContent label, SerializedProperty property, params GUILayoutOption[] options)
+		// {
+		// 	RenderingLayerMask(EditorGUILayout.GetControlRect(options), label, property);
+		// }
+		//
+		// public static int RenderingLayerMask(Rect position, GUIContent label, int mask, params GUILayoutOption[] options)
+		// {
+		// 	return RenderingLayerMask(EditorGUILayout.GetControlRect(options), label, mask);
+		// }
 	}
 
 	public static partial class HairGUI

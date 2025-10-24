@@ -67,37 +67,47 @@ namespace Unity.DemoTeam.Hair
 		public struct GroupInstance
 		{
 			[Serializable]
-			public struct SceneObjects
+			public struct HairAssets
 			{
-				public GameObject groupContainer;
-
-				public GameObject rootMeshContainer;
-				public MeshFilter rootMeshFilter;
-#if HAS_PACKAGE_DEMOTEAM_DIGITALHUMAN
-				public SkinAttachment rootMeshAttachment;
-#endif
-
-				public GameObject strandMeshContainer;
-				public MeshFilter strandMeshFilter;
-				public MeshRenderer strandMeshRenderer;
-#if HAS_PACKAGE_UNITY_HDRP_15_0_2
-				public HDAdditionalMeshRendererSettings strandMeshRendererHDRP;
-#endif
-
-				[NonSerialized] public Material materialInstance;
-				[NonSerialized] public Material materialInstanceShadows;
-
-#if !UNITY_2021_2_OR_NEWER
-				[NonSerialized] public Mesh meshInstance;
-				[NonSerialized] public Mesh meshInstanceShadows;
-
-				[NonSerialized] public ulong meshInstanceKey;
-				[NonSerialized] public ulong meshInstanceKeyShadows;
-#endif
+				public Mesh rootMesh;
+				public Mesh strandMesh;
+				public Material materialInstance;
+				public Material materialInstanceShadows;
 			}
+			
+// 			[Serializable]
+// 			public struct SceneObjects
+// 			{
+// 				public GameObject groupContainer;
+//
+// 				public GameObject rootMeshContainer;
+// 				public MeshFilter rootMeshFilter;
+// #if HAS_PACKAGE_DEMOTEAM_DIGITALHUMAN
+// 				public SkinAttachment rootMeshAttachment;
+// #endif
+//
+// 				public GameObject strandMeshContainer;
+// 				public MeshFilter strandMeshFilter;
+// 				public MeshRenderer strandMeshRenderer;
+// #if HAS_PACKAGE_UNITY_HDRP_15_0_2
+// 				public HDAdditionalMeshRendererSettings strandMeshRendererHDRP;
+// #endif
+//
+// 				[NonSerialized] public Material materialInstance;
+// 				[NonSerialized] public Material materialInstanceShadows;
+//
+// #if !UNITY_2021_2_OR_NEWER
+// 				[NonSerialized] public Mesh meshInstance;
+// 				[NonSerialized] public Mesh meshInstanceShadows;
+//
+// 				[NonSerialized] public ulong meshInstanceKey;
+// 				[NonSerialized] public ulong meshInstanceKeyShadows;
+// #endif
+// 			}
 
 			public GroupAssetReference groupAssetReference;
-			public SceneObjects sceneObjects;
+			// public SceneObjects sceneObjects;
+			public HairAssets runtimeObjs;
 			public int settingsIndex;
 		}
 
@@ -370,9 +380,9 @@ namespace Unity.DemoTeam.Hair
 			{
 				ref readonly var strandGroupInstance = ref strandGroupInstances[i];
 
-				strandGroupInstance.sceneObjects.groupContainer.hideFlags = hideFlags;
-				strandGroupInstance.sceneObjects.rootMeshContainer.hideFlags = hideFlags;
-				strandGroupInstance.sceneObjects.strandMeshContainer.hideFlags = hideFlags;
+				// strandGroupInstance.sceneObjects.groupContainer.hideFlags = hideFlags;
+				// strandGroupInstance.sceneObjects.rootMeshContainer.hideFlags = hideFlags;
+				// strandGroupInstance.sceneObjects.strandMeshContainer.hideFlags = hideFlags;
 			}
 		}
 		#endregion
@@ -768,9 +778,9 @@ namespace Unity.DemoTeam.Hair
 		{
 			for (int i = 0; i != solverData.Length; i++)
 			{
-				var rootMesh = strandGroupInstances[i].sceneObjects.rootMeshFilter.sharedMesh;
-				var rootMeshMatrix = strandGroupInstances[i].sceneObjects.rootMeshFilter.transform.localToWorldMatrix;
-				var rootMeshSkinningRotation = GetRootMeshSkinningRotation(strandGroupInstances[i], GetSettingsSkinning(strandGroupInstances[i]));
+				var rootMesh = strandGroupInstances[i].runtimeObjs.rootMesh;
+				var rootMeshMatrix = transform.localToWorldMatrix; // PON: No longer support skeletal attachment in the gameobject path. 
+				var rootMeshSkinningRotation = transform.rotation; // PON: No longer support skeletal attachment in the gameobject path. 
 
 				HairSim.PushSolverRoots(cmd, cmdFlags, ref solverData[i], rootMesh, rootMeshMatrix, rootMeshSkinningRotation, stepDesc.count);
 			}
@@ -818,7 +828,7 @@ namespace Unity.DemoTeam.Hair
 						var stepFracLo = (k + 0) / (float)stepDesc.count;
 						var stepFracHi = (k + 1) / (float)stepDesc.count;
 						var stepTimeHi = execState.elapsedTime - stepDesc.dt * (stepDesc.count - 1 - k);
-
+						
 						for (int i = 0; i != solverData.Length; i++)
 						{
 							HairSim.PushSolverStep(cmd, ref solverData[i], GetSettingsPhysics(strandGroupInstances[i]), volumeData, stepFracLo, stepFracHi, stepFinal: k == stepDesc.count - 1);
@@ -1061,7 +1071,7 @@ namespace Unity.DemoTeam.Hair
 #else
 					mesh = GetTopologyMesh(solverData, meshType, enableInstancing);
 #endif
-					materialInstance = GetTopologyMaterial(solverData, volumeData, mesh, meshType, enableInstancing, materialAsset, ref strandGroupInstance.sceneObjects.materialInstance);
+					materialInstance = GetTopologyMaterial(solverData, volumeData, mesh, meshType, enableInstancing, materialAsset, ref strandGroupInstance.runtimeObjs.materialInstance);
 				}
 
 				if (needResourcesShadows)
@@ -1073,7 +1083,7 @@ namespace Unity.DemoTeam.Hair
 #else
 					meshShadows = GetTopologyMesh(solverData, meshTypeShadows, enableInstancingShadows);
 #endif
-					materialInstanceShadows = GetTopologyMaterial(solverData, volumeData, meshShadows, meshTypeShadows, enableInstancingShadows, materialAsset, ref strandGroupInstance.sceneObjects.materialInstanceShadows);
+					materialInstanceShadows = GetTopologyMaterial(solverData, volumeData, meshShadows, meshTypeShadows, enableInstancingShadows, materialAsset, ref strandGroupInstance.runtimeObjs.materialInstanceShadows);
 				}
 				else
 				{
@@ -1083,69 +1093,65 @@ namespace Unity.DemoTeam.Hair
 			}
 
 			// update mesh filter
-			ref var meshFilter = ref strandGroupInstance.sceneObjects.strandMeshFilter;
-			{
-				if (meshFilter.sharedMesh != mesh)
-					meshFilter.sharedMesh = mesh;
-			}
+			strandGroupInstance.runtimeObjs.strandMesh = mesh;
 
 			// update mesh renderer
-			ref var meshRenderer = ref strandGroupInstance.sceneObjects.strandMeshRenderer;
-			{
-				meshRenderer.enabled = needRenderer;
-				meshRenderer.sharedMaterial = materialInstance;
-				meshRenderer.shadowCastingMode = needRendererShadows ? ShadowCastingMode.Off : settingsRendering.rendererShadows;
-				meshRenderer.renderingLayerMask = (uint)layerMask;
-				meshRenderer.motionVectorGenerationMode = settingsRendering.motionVectors;
+			// ref var meshRenderer = ref strandGroupInstance.sceneObjects.strandMeshRenderer;
+			// {
+			// 	meshRenderer.enabled = needRenderer;
+			// 	meshRenderer.sharedMaterial = materialInstance;
+			// 	meshRenderer.shadowCastingMode = needRendererShadows ? ShadowCastingMode.Off : settingsRendering.rendererShadows;
+			// 	meshRenderer.renderingLayerMask = (uint)layerMask;
+			// 	meshRenderer.motionVectorGenerationMode = settingsRendering.motionVectors;
+			//
+			// 	if (meshRenderer.rayTracingMode != UnityEngine.Experimental.Rendering.RayTracingMode.Off && SystemInfo.supportsRayTracing)
+			// 		meshRenderer.rayTracingMode = UnityEngine.Experimental.Rendering.RayTracingMode.Off;
+			// }
 
-				if (meshRenderer.rayTracingMode != UnityEngine.Experimental.Rendering.RayTracingMode.Off && SystemInfo.supportsRayTracing)
-					meshRenderer.rayTracingMode = UnityEngine.Experimental.Rendering.RayTracingMode.Off;
-			}
-
-#if HAS_PACKAGE_UNITY_HDRP_15_0_2
-			ref var meshRendererHDRP = ref strandGroupInstance.sceneObjects.strandMeshRendererHDRP;
-			{
-				if (meshRendererHDRP == null)
-				{
-					var container = strandGroupInstance.sceneObjects.strandMeshContainer;
-					if (container != null && container.TryGetComponent(out meshRendererHDRP) == false)
-					{
-						meshRendererHDRP = strandGroupInstance.sceneObjects.strandMeshRendererHDRP = HairInstanceBuilder.CreateComponent<HDAdditionalMeshRendererSettings>(container, container.hideFlags);
-					}
-				}
-
-				meshRendererHDRP.enabled = needRenderer && (settingsRendering.rendererShadows != ShadowCastingMode.ShadowsOnly);
-				meshRendererHDRP.rendererGroup = settingsRendering.rendererGroup;
-				meshRendererHDRP.enableHighQualityLineRendering = (settingsRendering.renderer == HairSim.SettingsRendering.Renderer.HDRPHighQualityLines);
-			}
-#endif
+// #if HAS_PACKAGE_UNITY_HDRP_15_0_2
+// 			ref var meshRendererHDRP = ref strandGroupInstance.sceneObjects.strandMeshRendererHDRP;
+// 			{
+// 				if (meshRendererHDRP == null)
+// 				{
+// 					var container = strandGroupInstance.sceneObjects.strandMeshContainer;
+// 					if (container != null && container.TryGetComponent(out meshRendererHDRP) == false)
+// 					{
+// 						meshRendererHDRP = strandGroupInstance.sceneObjects.strandMeshRendererHDRP = HairInstanceBuilder.CreateComponent<HDAdditionalMeshRendererSettings>(container, container.hideFlags);
+// 					}
+// 				}
+//
+// 				meshRendererHDRP.enabled = needRenderer && (settingsRendering.rendererShadows != ShadowCastingMode.ShadowsOnly);
+// 				meshRendererHDRP.rendererGroup = settingsRendering.rendererGroup;
+// 				meshRendererHDRP.enableHighQualityLineRendering = (settingsRendering.renderer == HairSim.SettingsRendering.Renderer.HDRPHighQualityLines);
+// 			}
+// #endif
 
 			// update mesh bounds
-			{
-#if !UNITY_2021_2_OR_NEWER
-				// prior to 2021.2 it was only possible to set renderer bounds indirectly via mesh bounds
-				if (mesh != null)
-					mesh.bounds = HairSim.GetSolverBounds(solverData, volumeData).WithTransform(meshFilter.transform.worldToLocalMatrix);
-#else
-				// starting with 2021.2 we can override renderer bounds directly
-				meshRenderer.localBounds = HairSim.GetSolverBounds(solverData, volumeData).WithTransform(meshFilter.transform.worldToLocalMatrix);
-
-				//TODO the world space bounds override is failing in some cases -- figure out why?
-				//meshRenderer.bounds = HairSim.GetSolverBounds(solverData, volumeData);
-#endif
-			}
+			// {
+// #if !UNITY_2021_2_OR_NEWER
+// 				// prior to 2021.2 it was only possible to set renderer bounds indirectly via mesh bounds
+// 				if (mesh != null)
+// 					mesh.bounds = HairSim.GetSolverBounds(solverData, volumeData).WithTransform(meshFilter.transform.worldToLocalMatrix);
+// #else
+// 				// starting with 2021.2 we can override renderer bounds directly
+// 				meshRenderer.localBounds = HairSim.GetSolverBounds(solverData, volumeData).WithTransform(meshFilter.transform.worldToLocalMatrix);
+//
+// 				//TODO the world space bounds override is failing in some cases -- figure out why?
+// 				//meshRenderer.bounds = HairSim.GetSolverBounds(solverData, volumeData);
+// #endif
+// 			}
 
 			// render (optional depending on configuration)
 			if (needRenderer)
 			{
 				if (enableIndirect)
 				{
-					meshRenderer.enabled = false;
-
-#if HAS_PACKAGE_UNITY_HDRP_15_0_2
-					if (meshRendererHDRP != null)
-						meshRendererHDRP.enabled = false;
-#endif
+// 					meshRenderer.enabled = false;
+//
+// #if HAS_PACKAGE_UNITY_HDRP_15_0_2
+// 					if (meshRendererHDRP != null)
+// 						meshRendererHDRP.enabled = false;
+// #endif
 
 #if !UNITY_2021_2_OR_NEWER
 					Graphics.DrawMeshInstancedIndirect(
@@ -1181,10 +1187,10 @@ namespace Unity.DemoTeam.Hair
 
 						*/
 
-						rparams.renderingLayerMask = (uint)meshRenderer.renderingLayerMask;
+						rparams.renderingLayerMask = (uint) layerMask;
 						rparams.worldBounds = HairSim.GetSolverBounds(solverData, volumeData);
-						rparams.motionVectorMode = meshRenderer.motionVectorGenerationMode;
-						rparams.shadowCastingMode = meshRenderer.shadowCastingMode;
+						rparams.motionVectorMode = settingsRendering.motionVectors;
+						rparams.shadowCastingMode = needRendererShadows ? ShadowCastingMode.Off : settingsRendering.rendererShadows;
 						rparams.receiveShadows = true;
 						rparams.sceneCullingMask = gameObject.sceneCullingMask;
 						rparams.overrideSceneCullingMask = true;
@@ -1195,6 +1201,10 @@ namespace Unity.DemoTeam.Hair
 
 					Graphics.RenderMeshIndirect(rparams, mesh, solverData.buffers._SolverLODTopology, 1, topologyIndex);
 #endif
+				}
+				else
+				{
+					Debug.LogWarning("Hair (PON): Non-Indirect rendering is no longer supported in the GameObject path.");
 				}
 			}
 
@@ -1326,25 +1336,25 @@ namespace Unity.DemoTeam.Hair
 			}
 		}
 
-		public static Bounds GetRootMeshBounds(in GroupInstance strandGroupInstance)
-		{
-			var rootLocalBounds = strandGroupInstance.sceneObjects.rootMeshFilter.sharedMesh.bounds;
-			var rootLocalToWorld = strandGroupInstance.sceneObjects.rootMeshFilter.transform.localToWorldMatrix;
-			{
-				return rootLocalBounds.WithTransform(rootLocalToWorld);
-			}
-		}
+		// public static Bounds GetRootMeshBounds(in GroupInstance strandGroupInstance)
+		// {
+		// 	var rootLocalBounds = strandGroupInstance.sceneObjects.rootMeshFilter.sharedMesh.bounds;
+		// 	var rootLocalToWorld = strandGroupInstance.sceneObjects.rootMeshFilter.transform.localToWorldMatrix;
+		// 	{
+		// 		return rootLocalBounds.WithTransform(rootLocalToWorld);
+		// 	}
+		// }
 
-		public static Quaternion GetRootMeshSkinningRotation(in GroupInstance strandGroupInstance, in SettingsSkinning settingsSkinning)
-		{
-#if HAS_PACKAGE_DEMOTEAM_DIGITALHUMAN
-			if (settingsSkinning.rootsAttach && settingsSkinning.rootsAttachTarget != null)
-			{
-				return settingsSkinning.rootsAttachTargetBone.skinningBone.rotation;
-			}
-#endif
-			return strandGroupInstance.sceneObjects.rootMeshFilter.transform.rotation;
-		}
+// 		public static Quaternion GetRootMeshSkinningRotation(in GroupInstance strandGroupInstance, in SettingsSkinning settingsSkinning)
+// 		{
+// #if HAS_PACKAGE_DEMOTEAM_DIGITALHUMAN
+// 			if (settingsSkinning.rootsAttach && settingsSkinning.rootsAttachTarget != null)
+// 			{
+// 				return settingsSkinning.rootsAttachTargetBone.skinningBone.rotation;
+// 			}
+// #endif
+// 			return strandGroupInstance.sceneObjects.rootMeshFilter.transform.rotation;
+// 		}
 
 		public ref readonly SettingsSkinning GetSettingsSkinning(in GroupInstance strandGroupInstance)
 		{
@@ -1570,9 +1580,9 @@ namespace Unity.DemoTeam.Hair
 			{
 				for (int i = 0; i != solverData.Length; i++)
 				{
-					var rootMesh = strandGroupInstances[i].sceneObjects.rootMeshFilter.sharedMesh;
-					var rootMeshMatrix = strandGroupInstances[i].sceneObjects.rootMeshFilter.transform.localToWorldMatrix;
-					var rootMeshSkinningRotation = GetRootMeshSkinningRotation(strandGroupInstances[i], GetSettingsSkinning(strandGroupInstances[i]));
+					var rootMesh = strandGroupInstances[i].runtimeObjs.rootMesh;
+					var rootMeshMatrix = transform.localToWorldMatrix;
+					var rootMeshSkinningRotation = transform.rotation;
 
 					HairSim.PushSolverRoots(cmd, cmdFlags, ref solverData[i], rootMesh, rootMeshMatrix, rootMeshSkinningRotation, stepCount: 1);
 					HairSim.PushSolverRootsHistory(cmd, solverData[i]);
@@ -1619,8 +1629,8 @@ namespace Unity.DemoTeam.Hair
 				{	
 					ref var strandGroupInstance = ref strandGroupInstances[i];
 
-					CoreUtils.Destroy(strandGroupInstance.sceneObjects.materialInstance);
-					CoreUtils.Destroy(strandGroupInstance.sceneObjects.materialInstanceShadows);
+					CoreUtils.Destroy(strandGroupInstance.runtimeObjs.materialInstance);
+					CoreUtils.Destroy(strandGroupInstance.runtimeObjs.materialInstanceShadows);
 
 #if !UNITY_2021_2_OR_NEWER
 					CoreUtils.Destroy(strandGroupInstance.sceneObjects.meshInstance);

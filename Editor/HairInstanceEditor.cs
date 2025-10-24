@@ -219,9 +219,9 @@ namespace Unity.DemoTeam.Hair
 							{
 								ref var strandGroupInstance = ref strandGroupInstances[i];
 
-								strandGroupInstance.sceneObjects.groupContainer.hideFlags &= ~HideFlags.NotEditable;
-								strandGroupInstance.sceneObjects.rootMeshFilter.gameObject.hideFlags &= ~HideFlags.NotEditable;
-								strandGroupInstance.sceneObjects.strandMeshFilter.gameObject.hideFlags &= ~HideFlags.NotEditable;
+								// strandGroupInstance.sceneObjects.groupContainer.hideFlags &= ~HideFlags.NotEditable;
+								// strandGroupInstance.sceneObjects.rootMeshFilter.gameObject.hideFlags &= ~HideFlags.NotEditable;
+								// strandGroupInstance.sceneObjects.strandMeshFilter.gameObject.hideFlags &= ~HideFlags.NotEditable;
 							}
 						}
 					}

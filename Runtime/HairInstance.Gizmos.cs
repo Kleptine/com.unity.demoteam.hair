@@ -34,20 +34,20 @@ namespace Unity.DemoTeam.Hair
 
 				for (int i = 0; i != strandGroupInstances.Length; i++)
 				{
-					var rootMeshFilter = strandGroupInstances[i].sceneObjects.rootMeshFilter;
-					if (rootMeshFilter != null)
-					{
-						var rootMesh = rootMeshFilter.sharedMesh;
+					// var rootMeshFilter = strandGroupInstances[i].sceneObjects.rootMeshFilter;
+					// if (rootMeshFilter != null)
+					// {
+						var rootMesh = strandGroupInstances[i].runtimeObjs.rootMesh;
 						if (rootMesh != null)
 						{
 							var rootBounds = rootMesh.bounds;
 							{
-								Gizmos.matrix = rootMeshFilter.transform.localToWorldMatrix;
+								Gizmos.matrix = transform.localToWorldMatrix;
 								Gizmos.DrawWireCube(rootBounds.center, rootBounds.size);
 								Gizmos.matrix = Matrix4x4.identity;
 							}
 						}
-					}
+					// }
 				}
 			}
 

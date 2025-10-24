@@ -31,8 +31,8 @@ namespace Unity.DemoTeam.Hair
 						strandGroupInstance.sceneObjects.rootMeshAttachment.Detach(false);
 #endif
 
-					CoreUtils.Destroy(strandGroupInstance.sceneObjects.groupContainer);
-					CoreUtils.Destroy(strandGroupInstance.sceneObjects.materialInstance);
+					CoreUtils.Destroy(strandGroupInstance.runtimeObjs.materialInstance);
+					CoreUtils.Destroy(strandGroupInstance.runtimeObjs.materialInstanceShadows);
 #if !UNITY_2021_2_OR_NEWER
 					CoreUtils.Destroy(strandGroupInstance.sceneObjects.meshInstance);
 #endif
@@ -100,13 +100,14 @@ namespace Unity.DemoTeam.Hair
 					var flatIndex = writeIndexInstance - 1;
 
 					// create scene object for group
-					strandGroupInstance.sceneObjects.groupContainer = CreateContainer("Group:" + flatIndex, hairInstance.gameObject, hideFlags);
+					// strandGroupInstance.sceneObjects.groupContainer = CreateContainer("Group:" + flatIndex, hairInstance.gameObject, hideFlags);
 
 					// create scene objects for root mesh
-					strandGroupInstance.sceneObjects.rootMeshContainer = CreateContainer("Roots:" + flatIndex, strandGroupInstance.sceneObjects.groupContainer, hideFlags);
+					// strandGroupInstance.sceneObjects.rootMeshContainer = CreateContainer("Roots:" + flatIndex, strandGroupInstance.sceneObjects.groupContainer, hideFlags);
 					{
-						strandGroupInstance.sceneObjects.rootMeshFilter = CreateComponent<MeshFilter>(strandGroupInstance.sceneObjects.rootMeshContainer, hideFlags);
-						strandGroupInstance.sceneObjects.rootMeshFilter.sharedMesh = strandGroups[j].meshAssetRoots;
+						// strandGroupInstance.sceneObjects.rootMeshFilter = CreateComponent<MeshFilter>(strandGroupInstance.sceneObjects.rootMeshContainer, hideFlags);
+						strandGroupInstance.runtimeObjs.rootMesh = strandGroups[j].meshAssetRoots;
+						// strandGroupInstance.sceneObjects.rootMeshFilter.sharedMesh = strandGroups[j].meshAssetRoots;
 
 #if HAS_PACKAGE_DEMOTEAM_DIGITALHUMAN
 						strandGroupInstance.sceneObjects.rootMeshAttachment = CreateComponent<SkinAttachment>(strandGroupInstance.sceneObjects.rootMeshContainer, hideFlags);
@@ -116,13 +117,13 @@ namespace Unity.DemoTeam.Hair
 					}
 
 					// create scene objects for strand mesh
-					strandGroupInstance.sceneObjects.strandMeshContainer = CreateContainer("Strands:" + flatIndex, strandGroupInstance.sceneObjects.groupContainer, hideFlags);
+					// strandGroupInstance.sceneObjects.strandMeshContainer = CreateContainer("Strands:" + flatIndex, strandGroupInstance.sceneObjects.groupContainer, hideFlags);
 					{
-						strandGroupInstance.sceneObjects.strandMeshFilter = CreateComponent<MeshFilter>(strandGroupInstance.sceneObjects.strandMeshContainer, hideFlags);
-						strandGroupInstance.sceneObjects.strandMeshRenderer = CreateComponent<MeshRenderer>(strandGroupInstance.sceneObjects.strandMeshContainer, hideFlags);
+						// strandGroupInstance.sceneObjects.strandMeshFilter = CreateComponent<MeshFilter>(strandGroupInstance.sceneObjects.strandMeshContainer, hideFlags);
+						// strandGroupInstance.sceneObjects.strandMeshRenderer = CreateComponent<MeshRenderer>(strandGroupInstance.sceneObjects.strandMeshContainer, hideFlags);
 
 #if HAS_PACKAGE_UNITY_HDRP_15_0_2
-						strandGroupInstance.sceneObjects.strandMeshRendererHDRP = CreateComponent<HDAdditionalMeshRendererSettings>(strandGroupInstance.sceneObjects.strandMeshContainer, hideFlags);
+						// strandGroupInstance.sceneObjects.strandMeshRendererHDRP = CreateComponent<HDAdditionalMeshRendererSettings>(strandGroupInstance.sceneObjects.strandMeshContainer, hideFlags);
 #endif
 					}
 				}
@@ -475,13 +476,13 @@ namespace Unity.DemoTeam.Hair
 							//  :  .   :
 							//  |,     |
 							//  4------5
-							//  |    ,´|
-							//  |  ,´  |      etc.
-							//  |,´    |
+							//  |    ,ï¿½|
+							//  |  ,ï¿½  |      etc.
+							//  |,ï¿½    |
 							//  2------3    12----13
-							//  |    ,´|    |    ,´|
-							//  |  ,´  |    |  ,´  |
-							//  |,´    |    |,´    |
+							//  |    ,ï¿½|    |    ,ï¿½|
+							//  |  ,ï¿½  |    |  ,ï¿½  |
+							//  |,ï¿½    |    |,ï¿½    |
 							//  0------1    10----11
 							//  .
 							//  |
@@ -539,11 +540,11 @@ namespace Unity.DemoTeam.Hair
 						{
 							//     :      :
 							//     7------6
-							//   ,´:    ,´|        4------5------6------7------4
-							//  4------5  |        |    ,´|    ,´|    ,´|    ,´|
-							//  |  :   |  |   =>   |  ,´  |  ,´  |  ,´  |  ,´  |
-							//  |  3 - |- 2        |,´    |,´    |,´    |,´    |
-							//  |,´    |,´         0------1------2------3------0
+							//   ,ï¿½:    ,ï¿½|        4------5------6------7------4
+							//  4------5  |        |    ,ï¿½|    ,ï¿½|    ,ï¿½|    ,ï¿½|
+							//  |  :   |  |   =>   |  ,ï¿½  |  ,ï¿½  |  ,ï¿½  |  ,ï¿½  |
+							//  |  3 - |- 2        |,ï¿½    |,ï¿½    |,ï¿½    |,ï¿½    |
+							//  |,ï¿½    |,ï¿½         0------1------2------3------0
 							//  0------1
 							//  .
 							//  |
