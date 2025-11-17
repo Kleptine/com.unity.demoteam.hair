@@ -2212,6 +2212,10 @@ void KInterpolatePromote(
 // The use a of a byte buffer for staging vertices also allows compressing the final positions used to render. This can be
 // configured with _StagingVertexFormat. More compressed vertices result in lower memory bandwidth at the cost of precision.
 //
+// Lastly, additional frustum and coverage culling are done, before adding strands to _RenderStrandIndices, a big
+// array of which strands should be rendered in the final draw. Even though we calculate and store staging vertices
+// for each strand, we only render those in _RenderStrandIndices.
+//
 // A history of the _StagingVertex buffer is copied into the _StagingVertexPrev buffer, and is used to write motion vectors.
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KStaging(

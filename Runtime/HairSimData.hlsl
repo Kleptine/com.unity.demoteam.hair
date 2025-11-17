@@ -111,6 +111,9 @@ float4 _StrandTileMaskSizeOffset;						// worldspace bounds of tile mask texture
 #define HAIRSIM_VOLUMELODX Buffer
 #endif
 
+// todo: Metal 3.1 as of 2023 supports texture atomics.
+// If we are willing to drop support for OSX versions pre-Ventura (or change this to be a runtime flag), we should
+// see improved performance on all volume operations. 
 #if SHADER_API_METAL
 #define PLATFORM_SUPPORTS_TEXTURE_ATOMICS 0
 #else
@@ -151,9 +154,11 @@ HAIRSIM_VOLUMEBOUNDS<LODBounds> _BoundsPrev;		// array(LODBounds): bounds (cente
 HAIRSIM_VOLUMEBOUNDS<LODGeometry> _BoundsGeometry;	// array(LODGeometry): bounds geometry description (dimensions for coverage)
 HAIRSIM_VOLUMEBOUNDS<float2> _BoundsCoverage;		// xy: bounds coverage (unbiased ceiling)
 
-HAIRSIM_VOLUMELOD<VolumeLODGrid> _VolumeLODStage;// array(VolumeLODGrid): grid properties
+HAIRSIM_VOLUMELOD<VolumeLODGrid> _VolumeLODStage;	// array(VolumeLODGrid): grid properties
 HAIRSIM_VOLUMELODX<uint> _VolumeLODDispatch;		// xyz: num groups, w: num grid cells in one dimension
 
+// These buffers store the accumulated weight and velocity values during splatting. They are divided in the KVolumeResolve
+// kernel to output the final _VolumeDensity and _VolumeVelocity buffers.
 HAIRSIM_VOLUMEACCU<int> _AccuWeight;				// x: fp accumulated weight
 HAIRSIM_VOLUMEACCU<int> _AccuWeight0;				// x: fp accumulated target weight
 HAIRSIM_VOLUMEACCU<int> _AccuVelocityX;				// x: fp accumulated x-velocity
