@@ -28,9 +28,11 @@
 #if HAIRSIM_WRITEABLE_SOLVERLOD
 #define HAIRSIM_SOLVERLOD RWStructuredBuffer
 #define HAIRSIM_SOLVERLODX RWBuffer
+#define HAIRSIM_SOLVERLOD_BYTEBUFFER RWByteAddressBuffer
 #else
 #define HAIRSIM_SOLVERLOD StructuredBuffer
 #define HAIRSIM_SOLVERLODX Buffer
+#define HAIRSIM_SOLVERLOD_BYTEBUFFER ByteAddressBuffer
 #endif
 
 #if HAIRSIM_WRITEABLE_SOLVERDATA
@@ -59,6 +61,8 @@ HAIRSIM_SOLVERLOD<LODIndices> _SolverLODStage;			// x: lod index lo, y: lod inde
 HAIRSIM_SOLVERLOD<uint2> _SolverLODRange;				// xy: dispatch strand range [begin, end)
 HAIRSIM_SOLVERLODX<uint> _SolverLODDispatch;			// xyz: dispatch args compute, w: dispatch strand count || xyzw: dispatch args draw
 HAIRSIM_SOLVERLODX<uint> _SolverLODTopology;			// x[5]: dispatch args draw indexed
+
+HAIRSIM_SOLVERLOD_BYTEBUFFER _SolverStrandLodRequests;	// x[byte]: LOD level each individual strand requests based on coverage / etc. 255=culled
 
 HAIRSIM_SOLVERINIT<float4> _InitialParticleOffset;		// xyz: initial particle offset from strand root, w: initial local accumulated weight (gather)
 HAIRSIM_SOLVERINIT<float4> _InitialParticleFrameDelta;	// quat(xyz,w): initial particle material frame delta
