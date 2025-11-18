@@ -106,6 +106,7 @@ namespace Unity.DemoTeam.Hair
 
 		static class SolverKernels
 		{
+			// These values are set via reflection by looking up the kernel name.
 			public static int KRoots;
 			public static int KRootsHistory;
 			public static int KRootsHistoryAdd;
@@ -114,6 +115,7 @@ namespace Unity.DemoTeam.Hair
 			public static int KInitializePostVolume;
 			public static int KLODSelectionInit;
 			public static int KLODSelection;
+			public static int KStrandLODSelection;
 			public static int KLODSelectionPost;
 			public static int KSolveConstraints_GaussSeidelReference;
 			public static int KSolveConstraints_GaussSeidel;
@@ -132,6 +134,8 @@ namespace Unity.DemoTeam.Hair
 
 		static class VolumeKernels
 		{
+			// These values are set via reflection by looking up the kernel name.
+			
 			// bounds
 			public static int KBoundsClear;
 			public static int KBoundsGather;
@@ -273,6 +277,7 @@ namespace Unity.DemoTeam.Hair
 				changed |= CreateBuffer(ref solverBuffers._SolverLODRange, "SolverLODRange", (int)SolverLODRange.__COUNT, particleStrideVector2);
 				changed |= CreateBuffer(ref solverBuffers._SolverLODDispatch, "SolverLODDispatch", (int)SolverLODDispatch.__COUNT * 4, sizeof(uint), ComputeBufferType.IndirectArguments);
 				changed |= CreateBuffer(ref solverBuffers._SolverLODTopology, "SolverLODTopology", (int)SolverLODTopology.__COUNT * 5, sizeof(uint), ComputeBufferType.IndirectArguments);
+				changed |= CreateBuffer(ref solverBuffers._SolverStrandLodRequests, "SolverStrandLodRequests", strandCount, sizeof(uint));
 
 				changed |= CreateBuffer(ref solverBuffers._InitialParticleOffset, "InitialParticleOffset", particleCount, particleStrideVector4);
 				changed |= CreateBuffer(ref solverBuffers._InitialParticleFrameDelta, "InitialParticleFrameDelta", particleCount, particleStrideVector4);
@@ -416,6 +421,7 @@ namespace Unity.DemoTeam.Hair
 			ReleaseBuffer(ref solverBuffers._SolverLODRange);
 			ReleaseBuffer(ref solverBuffers._SolverLODDispatch);
 			ReleaseBuffer(ref solverBuffers._SolverLODTopology);
+			ReleaseBuffer(ref solverBuffers._SolverStrandLodRequests);
 
 			ReleaseBuffer(ref solverBuffers._InitialParticleOffset);
 			ReleaseBuffer(ref solverBuffers._InitialParticleFrameDelta);
@@ -556,6 +562,7 @@ namespace Unity.DemoTeam.Hair
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverLODRange, solverBuffers._SolverLODRange);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverLODDispatch, solverBuffers._SolverLODDispatch);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverLODTopology, solverBuffers._SolverLODTopology);
+			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandLodRequests, solverBuffers._SolverStrandLodRequests);
 
 			target.BindComputeBuffer(SolverData.s_bufferIDs._ParticlePosition, solverBuffers._ParticlePosition);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._ParticlePositionPrev, solverBuffers._ParticlePositionPrev);
@@ -891,6 +898,12 @@ namespace Unity.DemoTeam.Hair
 			BindVolumeData(cmd, s_solverCS, SolverKernels.KLODSelection, volumeData);
 			BindSolverData(cmd, s_solverCS, SolverKernels.KLODSelection, solverData);
 			cmd.DispatchCompute(s_solverCS, SolverKernels.KLODSelection, 1, 1, 1);
+			
+			// lod strand selection
+			BindSolverData(cmd, s_solverCS, SolverKernels.KStrandLODSelection, solverData);
+			BindVolumeData(cmd, s_solverCS, SolverKernels.KStrandLODSelection, volumeData);
+			int groups = ((int)solverData.constants._StrandCount + THREAD_GROUP_SIZE - 1) / THREAD_GROUP_SIZE;
+			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODSelection, groups, 1, 1);
 
 			// schedule readback
 			solverData.buffersReadback._SolverLODStage.ScheduleCopy(cmd, solverData.buffers._SolverLODStage);
@@ -2330,6 +2343,7 @@ namespace Unity.DemoTeam.Hair
 			VolumeSliceAbove		= 6,
 			VolumeSliceBelow		= 7,
 			VolumeIsosurface		= 8,
+			StrandLodLevels	    	= 9,
 		};
 
 		public static void DrawSolverData(CommandBuffer cmd, in SolverData solverData, in SettingsDebugging settingsDebugging)
@@ -2338,6 +2352,7 @@ namespace Unity.DemoTeam.Hair
 			{
 				if (!settingsDebugging.drawStrandRoots &&
 					!settingsDebugging.drawStrandParticles &&
+					!settingsDebugging.drawStrandLodLevels &&
 					!settingsDebugging.drawStrandVelocities &&
 					!settingsDebugging.drawStrandClusters)
 					return;
@@ -2350,6 +2365,12 @@ namespace Unity.DemoTeam.Hair
 				if (settingsDebugging.drawStrandRoots)
 				{
 					cmd.DrawProcedural(Matrix4x4.identity, s_debugDrawMat, (int)DebugDrawPass.StrandRootFrame, MeshTopology.Lines, vertexCount: 6, (int)solverData.constants._StrandCount, s_debugDrawPb);
+				}
+				
+				// strand lod levels
+				if (settingsDebugging.drawStrandLodLevels)
+				{
+					cmd.DrawProcedural(Matrix4x4.identity, s_debugDrawMat, (int)DebugDrawPass.StrandLodLevels, MeshTopology.Triangles, vertexCount: 3, (int)solverData.constants._StrandCount, s_debugDrawPb);
 				}
 
 				// strand particles

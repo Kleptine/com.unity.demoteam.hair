@@ -10,12 +10,17 @@ namespace Unity.DemoTeam.Hair
 		private static Camera[] s_managedCameras = new Camera[128];
 		private static Plane[] s_managedFrustum = new Plane[6];
 			
+		// Represents a camera frustum used for LOD selection and culling.
+		// Units are in absolute world space, even when using camera-relative rendering in HDRP.
 		[GenerateHLSL(needAccessors = false)]
 		public struct LODFrustum
 		{
 			public Vector3 cameraPosition;
 			public Vector3 cameraForward;
 			public float cameraNear;
+			
+			// The depth at which a height of 1 meter becomes smaller than 1 pixel on screen. 
+			// Alternatively, the number of pixels 1 meter of height occupies, when it is 1 meter from the camera.
 			public float unitSpanSubpixelDepth;
 
 			public Vector4 plane0;

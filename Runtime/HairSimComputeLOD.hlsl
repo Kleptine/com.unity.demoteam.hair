@@ -48,6 +48,7 @@ bool LODFrustumContains(const LODFrustum lodFrustum, const LODBounds lodBounds)
 	);
 }
 
+// Calculates the projected number of pixels an object of height "sampleSpan" will cover at depth "sampleDepth".
 float LODFrustumCoverage(const LODFrustum lodFrustum, const float sampleDepth, const float sampleSpan)
 {
 	float sampleSpanSubpixelDepth = sampleSpan * lodFrustum.unitSpanSubpixelDepth;
@@ -57,6 +58,7 @@ float LODFrustumCoverage(const LODFrustum lodFrustum, const float sampleDepth, c
 	}
 }
 
+// Calculates the projected number of pixels an object of height "sampleSpan" will cover at position "samplePosition".
 float LODFrustumCoverage(const LODFrustum lodFrustum, const float3 samplePosition, const float sampleSpan)
 {
 	float sampleDepth = dot(lodFrustum.cameraForward, samplePosition - lodFrustum.cameraPosition);

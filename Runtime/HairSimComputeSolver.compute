@@ -9,6 +9,7 @@
 #pragma kernel KLODSelectionInit						THREAD_GROUP_SIZE=1		F_LOD
 #pragma kernel KLODSelection							THREAD_GROUP_SIZE=1		F_LOD
 #pragma kernel KLODSelectionPost						THREAD_GROUP_SIZE=1		F_LOD
+#pragma kernel KStrandLODSelection						THREAD_GROUP_SIZE=64	F_LOD
 
 #pragma kernel KInitialize								THREAD_GROUP_SIZE=64	F_INIT
 #pragma kernel KInitializePostVolume					THREAD_GROUP_SIZE=64	F_INIT
@@ -937,6 +938,49 @@ void KLODSelection(
 	WriteIndirectDispatch(SOLVERLODDISPATCH_RASTER_POINTS_ALL,		ResolveDrawParallelParticles(countSolve + countInterpolate, 1));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_RASTER_QUADS,			ResolveDrawParallelParticles(countSolve, 8));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_RASTER_QUADS_ALL,		ResolveDrawParallelParticles(countSolve + countInterpolate, 8));
+}
+
+// Stage 1 of the per-strand LOD algorithm.
+// This kernel calculates the ideal, requested LOD level for each strand. This is the guide strand they would like 
+// to follow in the simulation (or _LodCount-1 if the strand wants to acting as its own guide).
+// These requested LOD levels will be reconciled through the cluster hierarchy in the later passes.
+[numthreads(THREAD_GROUP_SIZE, 1, 1)]
+void KStrandLODSelection(
+	uint3 groupIdx : SV_GroupID,
+	uint3 localIdx : SV_GroupThreadID,
+	uint3 worldIdx : SV_DispatchThreadID,
+	uint threadIdx : SV_GroupIndex)
+	// SV_GroupID           execution group coords
+	// SV_GroupThreadID     thread coords within execution group
+	// SV_DispatchThreadID  thread coords (global)
+	// SV_GroupIndex        thread offset within execution group
+{
+	DECLARE_STRAND(worldIdx.x);
+	
+	float3 rootPos = _ParticlePosition[strandParticleBegin];
+	float3 tipPos = _ParticlePosition[strandParticleEnd - _StrandParticleStride];
+	
+	// Strand properties (world space)
+	float3 strandCenter = rootPos;
+	float strandDiameter = length(rootPos - tipPos); 
+	
+	// We currently LOD based on how far away each strand is from the camera (number of pixels the strand length is on screen).
+	// todo: We should probably LOD based on the size of the parent clusters. A strand can be lod'd until the cluster
+	// it is a part of reaches a certain size on screen (which can be our toplevel configuration). This may be slower though.
+	int lod = 0;
+	for (uint f = 0; f < _LODFrustumCount; ++f)
+	{
+		LODFrustum lodFrustum = _LODFrustum[f];
+		float curveDepth = dot(lodFrustum.cameraForward, strandCenter - lodFrustum.cameraPosition);
+		float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, strandDiameter);
+		
+		// LODing is based on number of pixels on screen. 
+		// todo: We need to multiply by the LOD scaling parameters!
+		float clampedCoverage = clamp(curveCoverage, 20, 100);
+		lod = max(lod, (uint) round(Remap(20, 100, 0, _LODCount - 1, clampedCoverage)));
+	}
+	
+	_SolverStrandLodRequests[strandIndex] = lod;
 }
 
 uint2 ResolveDrawIndexedLine()

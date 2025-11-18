@@ -40,6 +40,7 @@
 		return TransformWorldToHClip(worldPos);
 	}
 
+	// Filters strands to only those that are specified by _DebugCluster. Passes all through if _DebugCluster == -1.
 	float4 FilterClusters(float4 worldPos, uint strandIndex, in LODIndices lodDesc)
 	{
 		if (_DebugCluster >= 0)
@@ -186,6 +187,49 @@
 
 		return output;
 	}
+	
+	// Calculates a world-space position for a vertex of a camera-facing triangle
+	float3 GetBillboardTrianglePosition(float3 centerWS, uint vertexID, float size /* meters */)
+	{
+		// Unity View Matrix is World->Camera. Inverse View is Camera->World.
+		// Columns 0 and 1 of I_V represent the Camera's Local Right and Up vectors in World Space.
+		float3 cameraRight = normalize(UNITY_MATRIX_I_V._m00_m10_m20);
+		float3 cameraUp    = normalize(UNITY_MATRIX_I_V._m01_m11_m21);
+		
+		float2 offset = float2(0, 0);
+		uint vID = vertexID % 3; // Use modulo 3 in case vertexID > 2
+		
+		if (vID == 0) offset = float2( 0.0,  1.0); // Top Center
+		if (vID == 1) offset = float2( 0.5,  0.0); // Bottom Right
+		if (vID == 2) offset = float2(-0.5,  0.0); // Bottom Left
+
+		// 3. Apply Offset
+		return centerWS + (cameraRight * offset.x * size) + (cameraUp * offset.y * size);
+	}
+
+	// Main Vertex Shader
+	DebugVaryings DebugVert_StrandLodLevels(uint instanceID : SV_InstanceID, uint vertexID : SV_VertexID)
+	{
+		const LODIndices lodDesc = _SolverLODStage[SOLVERLODSTAGE_PHYSICS];
+
+		const uint strandIndex = instanceID;
+		const uint strandParticleBegin = strandIndex * _StrandParticleOffset;
+		
+		uint strandLod = _SolverStrandLodRequests[strandIndex];
+		float3 rootPos = _ParticlePosition[strandParticleBegin].xyz;
+
+		// Render a triangle.
+		float triangleSize = 0.02; 
+		float3 worldPos = GetBillboardTrianglePosition(rootPos, vertexID, triangleSize);
+
+		DebugVaryings output;
+		output.positionCS = FilterClusters(WorldToClip(worldPos), strandIndex, lodDesc);
+		output.pointSize = 1.0;
+		output.color = float4(ColorHeatmap(strandLod, _LODCount), 1.0);
+
+		return output;
+	}
+	
 
 	DebugVaryings DebugVert_VolumeCellDensity(uint vertexID : SV_VertexID)
 	{
@@ -417,7 +461,7 @@
 	SubShader
 	{
 		Cull Off
-		ZTest LEqual
+		ZTest Off
 		ZWrite On
 
 		Pass// 0 == STRAND ROOT FRAME
@@ -440,7 +484,7 @@
 			ENDHLSL
 		}
 
-		Pass// 1 == STRAND PARTICLE VELOCITY
+		Pass// 2 == STRAND PARTICLE VELOCITY
 		{
 			HLSLPROGRAM
 
@@ -450,9 +494,8 @@
 			ENDHLSL
 		}
 
-		Pass // 7 == STRAND PARTICLE CLUSTERS
+		Pass // 3 == STRAND PARTICLE CLUSTERS
 		{
-			ZTest Off
 			Name "Cluster Debug"
 			HLSLPROGRAM
 
@@ -462,7 +505,7 @@
 			ENDHLSL
 		}
 
-		Pass// 2 == VOLUME CELL DENSITY
+		Pass// 4 == VOLUME CELL DENSITY
 		{
 			HLSLPROGRAM
 
@@ -472,7 +515,7 @@
 			ENDHLSL
 		}
 
-		Pass// 3 == VOLUME CELL GRADIENT
+		Pass// 5 == VOLUME CELL GRADIENT
 		{
 			HLSLPROGRAM
 
@@ -482,7 +525,7 @@
 			ENDHLSL
 		}
 
-		Pass// 4 == VOLUME SLICE (ABOVE)
+		Pass// 6 == VOLUME SLICE (ABOVE)
 		{
 			Blend SrcAlpha OneMinusSrcAlpha
 
@@ -494,7 +537,7 @@
 			ENDHLSL
 		}
 
-		Pass// 5 == VOLUME SLICE (BELOW)
+		Pass// 7 == VOLUME SLICE (BELOW)
 		{
 			Blend SrcAlpha OneMinusSrcAlpha
 			ZTest Greater
@@ -508,7 +551,7 @@
 			ENDHLSL
 		}
 
-		Pass// 6 == VOLUME ISOSURFACE
+		Pass// 8 == VOLUME ISOSURFACE
 		{
 			Blend SrcAlpha OneMinusSrcAlpha
 			Cull Back
@@ -519,6 +562,20 @@
 
 			#pragma vertex DebugVert_VolumeIsosurface
 			#pragma fragment DebugFrag_VolumeIsosurface
+
+			ENDHLSL
+		}
+
+		// Renders the final strand LOD levels after fine-grained lod calculation.
+		Pass // 9 == STRAND LOD LEVELS
+		{
+			ZTest Less
+			
+			HLSLPROGRAM
+			
+
+			#pragma vertex DebugVert_StrandLodLevels
+			#pragma fragment DebugFrag
 
 			ENDHLSL
 		}
