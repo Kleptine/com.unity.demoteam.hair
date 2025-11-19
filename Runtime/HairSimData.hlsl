@@ -57,12 +57,17 @@ HAIRSIM_SOLVERINPUT<float4> _RootFrameNext;				// quat(xyz,w): strand root mater
 HAIRSIM_SOLVERINPUT<float4> _RootFramePrev;				// quat(xyz,w): ...
 HAIRSIM_SOLVERINPUT<float4> _RootFrame;					// quat(xyz,w): ...
 
+// The group LOD system runs once and calculates a broad-phase LOD for the entire group.
 HAIRSIM_SOLVERLOD<LODIndices> _SolverLODStage;			// x: lod index lo, y: lod index hi, z: lod blend fraction, w: lod value/quantity
 HAIRSIM_SOLVERLOD<uint2> _SolverLODRange;				// xy: dispatch strand range [begin, end)
 HAIRSIM_SOLVERLODX<uint> _SolverLODDispatch;			// xyz: dispatch args compute, w: dispatch strand count || xyzw: dispatch args draw
 HAIRSIM_SOLVERLODX<uint> _SolverLODTopology;			// x[5]: dispatch args draw indexed
+
+// The strand LOD system runs on all strands, and outputs a list of strands to simulate this frame.
 HAIRSIM_SOLVERLOD<uint> _SolverStrandLodRequests;		// x: LOD level each individual strand requests based on coverage / etc.
 HAIRSIM_SOLVERLOD<uint> _SolverStrandLod;				// x: Final LOD level for each strand after cluster merging.
+HAIRSIM_SOLVERLOD<uint> _SolverStrandIndices;			// x: The strand index to simulate. The sparse set of strands simulated this frame.
+HAIRSIM_SOLVERLOD<uint> _SolverStrandCount;				// size=1, the count of strands to simulate from the _SolverStrandIndices buffer.
 
 HAIRSIM_SOLVERINIT<float4> _InitialParticleOffset;		// xyz: initial particle offset from strand root, w: initial local accumulated weight (gather)
 HAIRSIM_SOLVERINIT<float4> _InitialParticleFrameDelta;	// quat(xyz,w): initial particle material frame delta

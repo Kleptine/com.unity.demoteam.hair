@@ -803,6 +803,9 @@ void KLODSelection(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
+	// Reset the strand index buffer.
+	_SolverStrandCount[0] = 0;
+	
 	// select solver lod
 	float solverLODQuantity = 1.0;
 	{
@@ -1047,7 +1050,8 @@ void KStrandLODSelection(
 {
 	DECLARE_STRAND(worldIdx.x);
 
-	for (uint lodLevel = 0; lodLevel < _LODCount; lodLevel++)
+	uint lodLevel;
+	for (lodLevel = 0; lodLevel < _LODCount; lodLevel++)
 	{
 		// 1. Find my guide `G` at the current level `L`.
 		uint guide = _LODGuideIndex[lodLevel * _StrandCount + strandIndex];
@@ -1064,6 +1068,21 @@ void KStrandLODSelection(
 			// This ensures the "minimum sufficient L" is chosen.
 			_SolverStrandLod[strandIndex] = lodLevel;
 			break;
+		}
+	}
+	
+	// Determine whether this strand should be simulated. If so, compact it into our big buffer of indices.
+	// A strand is simulated if it is its own guide at the final LOD level
+	uint guide = _LODGuideIndex[lodLevel * _StrandCount + strandIndex];
+	if (guide == strandIndex)
+	{
+		uint simulationIndex;
+		InterlockedAdd(_SolverStrandCount[0], 1, simulationIndex);
+
+		// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
+		// to determine which strands to render.
+		if (simulationIndex < _StrandCount) {
+			_SolverStrandIndices[simulationIndex] = strandIndex;
 		}
 	}
 }

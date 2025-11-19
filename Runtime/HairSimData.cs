@@ -42,6 +42,8 @@ namespace Unity.DemoTeam.Hair
 				public T _SolverLODTopology;			// x[5]: dispatch args draw indexed
 				public T _SolverStrandLodRequests;		// x: LOD level each individual strand requests based on coverage / etc. 255=culled
 				public T _SolverStrandLod;				// x: Final LOD level for each strand after cluster merging.
+				public T _SolverStrandIndices;			// x: The strand index to simulate. The sparse set of strands simulated this frame.
+				public T _SolverStrandCount;			// size=1, the count of strands to simulate from the _SolverStrandCount buffer.
 
 				public T _InitialParticleOffset;		// xyz: initial particle offset from strand root, w: initial local accumulated weight (gather)
 				public T _InitialParticleFrameDelta;	// quat(xyz,w): initial particle material frame delta

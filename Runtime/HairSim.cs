@@ -85,6 +85,9 @@ namespace Unity.DemoTeam.Hair
 			// Note: This counter may be delayed, because it is set via an async gpu readback. 
 			public static ProfilerCounterValue<int> StagedStrands 
 				= new (HairSimulation, "HairSim.StagedStrands", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame);
+			
+			public static ProfilerCounterValue<int> SimulatedStrands 
+				= new (HairSimulation, "HairSim.SimulatedStrands", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame);
 		}
 
 		static class UniformIDs
@@ -282,6 +285,8 @@ namespace Unity.DemoTeam.Hair
 				changed |= CreateBuffer(ref solverBuffers._SolverLODTopology, "SolverLODTopology", (int)SolverLODTopology.__COUNT * 5, sizeof(uint), ComputeBufferType.IndirectArguments);
 				changed |= CreateBuffer(ref solverBuffers._SolverStrandLodRequests, "SolverStrandLodRequests", strandCount, sizeof(uint));
 				changed |= CreateBuffer(ref solverBuffers._SolverStrandLod, "SolverStrandLod", strandCount, sizeof(uint));
+				changed |= CreateBuffer(ref solverBuffers._SolverStrandIndices, "SolverStrandIndices", strandCount, sizeof(uint));
+				changed |= CreateBuffer(ref solverBuffers._SolverStrandCount, "SolverStrandCount", 1, sizeof(uint));
 
 				changed |= CreateBuffer(ref solverBuffers._InitialParticleOffset, "InitialParticleOffset", particleCount, particleStrideVector4);
 				changed |= CreateBuffer(ref solverBuffers._InitialParticleFrameDelta, "InitialParticleFrameDelta", particleCount, particleStrideVector4);
@@ -427,6 +432,8 @@ namespace Unity.DemoTeam.Hair
 			ReleaseBuffer(ref solverBuffers._SolverLODTopology);
 			ReleaseBuffer(ref solverBuffers._SolverStrandLodRequests);
 			ReleaseBuffer(ref solverBuffers._SolverStrandLod);
+			ReleaseBuffer(ref solverBuffers._SolverStrandIndices);
+			ReleaseBuffer(ref solverBuffers._SolverStrandCount);
 
 			ReleaseBuffer(ref solverBuffers._InitialParticleOffset);
 			ReleaseBuffer(ref solverBuffers._InitialParticleFrameDelta);
@@ -569,6 +576,8 @@ namespace Unity.DemoTeam.Hair
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverLODTopology, solverBuffers._SolverLODTopology);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandLodRequests, solverBuffers._SolverStrandLodRequests);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandLod, solverBuffers._SolverStrandLod);
+			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandIndices, solverBuffers._SolverStrandIndices);
+			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandCount, solverBuffers._SolverStrandCount);
 
 			target.BindComputeBuffer(SolverData.s_bufferIDs._ParticlePosition, solverBuffers._ParticlePosition);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._ParticlePositionPrev, solverBuffers._ParticlePositionPrev);
@@ -1299,6 +1308,12 @@ namespace Unity.DemoTeam.Hair
 				{
 					uint v = request.GetData<uint>()[0];
 					CountersGPU.StagedStrands.Value += (int) v;
+				});
+				
+				cmd.RequestAsyncReadback(solverBuffers._SolverStrandCount, request =>
+				{
+					uint v = request.GetData<uint>()[0];
+					CountersGPU.SimulatedStrands.Value += (int) v;
 				});
 
 				if (stagingBufferHistoryReset)
