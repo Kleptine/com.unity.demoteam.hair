@@ -1569,7 +1569,7 @@ namespace Unity.DemoTeam.Hair
 					{
 						var step = 1.0f / (settings.strandCount - 1);
 
-						var localDim = new Vector3(1.0f, 0.0f, 0.0f);
+						var localDim = new Vector3(settings.primitiveScale, 0.0f, 0.0f);
 						var localDir = Vector3.down;
 
 						for (int i = 0; i != settings.strandCount; i++)
@@ -1587,7 +1587,7 @@ namespace Unity.DemoTeam.Hair
 					{
 						var step = 1.0f / settings.strandCount;
 
-						var localDim = new Vector3(1.0f, 0.0f, step);
+						var localDim = new Vector3(1.0f, 0.0f, step) * settings.primitiveScale;
 						var localDir = Vector3.down;
 
 						for (int i = 0; i != settings.strandCount; i++)
@@ -1604,7 +1604,7 @@ namespace Unity.DemoTeam.Hair
 
 				case HairAsset.SettingsProcedural.PrimitiveType.Brush:
 					{
-						var localDim = new Vector3(1.0f, 0.0f, 1.0f);
+						var localDim = new Vector3(1.0f, 0.0f, 1.0f) * settings.primitiveScale;
 						var localDir = Vector3.down;
 
 						for (int i = 0; i != settings.strandCount; i++)

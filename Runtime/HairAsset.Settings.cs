@@ -97,6 +97,8 @@ namespace Unity.DemoTeam.Hair
 			public PlacementMode placement;
 			[VisibleIf(nameof(placement), PlacementMode.Primitive), Tooltip("Place strands using builtin primitive generator")]
 			public PrimitiveType placementPrimitive;
+			[VisibleIf(nameof(placement), PlacementMode.Primitive), Tooltip("Scale applied to final primitive")]
+			public float primitiveScale;
 			[VisibleIf(nameof(placement), PlacementMode.Custom), Tooltip("Place strands using specified custom generator")]
 			public HairAssetCustomPlacement placementProvider;
 			[VisibleIf(nameof(placement), PlacementMode.Mesh), Tooltip("Place strands on specified triangle mesh")]
@@ -173,6 +175,7 @@ namespace Unity.DemoTeam.Hair
 			{
 				placement = PlacementMode.Primitive,
 				placementPrimitive = PrimitiveType.Curtain,
+				primitiveScale = 1.0f,
 				placementProvider = null,
 				placementMesh = null,
 				placementMeshGroups = (SubmeshMask)(-1),
