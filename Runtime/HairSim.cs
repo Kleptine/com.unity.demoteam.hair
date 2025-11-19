@@ -96,6 +96,7 @@ namespace Unity.DemoTeam.Hair
 
 			// debug
 			public static int _DebugCluster;
+			public static int _DebugLod;
 			public static int _DebugSliceAxis;
 			public static int _DebugSliceOffset;
 			public static int _DebugSliceDivider;
@@ -2360,6 +2361,7 @@ namespace Unity.DemoTeam.Hair
 				BindSolverData(cmd, solverData);
 
 				s_debugDrawPb.SetInt(UniformIDs._DebugCluster, settingsDebugging.specificCluster);
+				s_debugDrawPb.SetInt(UniformIDs._DebugLod, settingsDebugging.specificLod);
 
 				// strand roots
 				if (settingsDebugging.drawStrandRoots)

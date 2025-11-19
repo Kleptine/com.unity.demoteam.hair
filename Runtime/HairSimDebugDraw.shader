@@ -21,6 +21,7 @@
 	#include "HairSimDebugDrawColors.hlsl"
 
 	int _DebugCluster;
+	int _DebugLod;
 	uint _DebugSliceAxis;
 	float _DebugSliceOffset;
 	float _DebugSliceDivider;
@@ -39,6 +40,57 @@
 	{
 		return TransformWorldToHClip(worldPos);
 	}
+	
+	// Calculates a world-space position for a vertex of a camera-facing triangle
+	float3 GetBillboardTrianglePosition(float3 centerWS, uint vertexID, float size /* meters */)
+	{
+		// Unity View Matrix is World->Camera. Inverse View is Camera->World.
+		// Columns 0 and 1 of I_V represent the Camera's Local Right and Up vectors in World Space.
+		float3 cameraRight = normalize(UNITY_MATRIX_I_V._m00_m10_m20);
+		float3 cameraUp    = normalize(UNITY_MATRIX_I_V._m01_m11_m21);
+		
+		float2 offset = float2(0, 0);
+		uint vID = vertexID % 3; // Use modulo 3 in case vertexID > 2
+		
+		if (vID == 0) offset = float2( 0.0,  1.0); // Top Center
+		if (vID == 1) offset = float2( 0.5,  0.0); // Bottom Right
+		if (vID == 2) offset = float2(-0.5,  0.0); // Bottom Left
+
+		// 3. Apply Offset
+		return centerWS + (cameraRight * offset.x * size) + (cameraUp * offset.y * size);
+	}
+	
+	// Constructs a triangle where the Tip is at 'tipPos' and the Base is at 'basePos'.
+	// The base is billboarded to face the camera using 'baseWidth'.
+	float3 GetDirectedTriangleVertex(float3 tipPos, float3 basePos, uint vertexID, float baseWidth)
+	{
+		// Vertex 0: The Tip (at the Child)
+		if (vertexID == 0) 
+		{
+			return tipPos;
+		}
+
+		// Vertices 1 & 2: The Base (at the Guide)
+		// Calculate a "Right" vector relative to the camera to billboard the base
+		float3 viewDir = normalize(basePos - _WorldSpaceCameraPos);
+		float3 up = float3(0, 1, 0);
+		float3 camRight = cross(viewDir, up);
+				
+		// Handle edge case where we are looking straight down/up
+		if (dot(camRight, camRight) < 1e-5) 
+		{
+			camRight = float3(1, 0, 0);
+		}
+		else 
+		{
+			camRight = normalize(camRight);
+		}
+
+		// Offset left or right
+		float direction = (vertexID == 1) ? -0.5 : 0.5;
+		return basePos + (camRight * baseWidth * direction);
+	}
+
 
 	// Filters strands to only those that are specified by _DebugCluster. Passes all through if _DebugCluster == -1.
 	float4 FilterClusters(float4 worldPos, uint strandIndex, in LODIndices lodDesc)
@@ -188,44 +240,42 @@
 		return output;
 	}
 	
-	// Calculates a world-space position for a vertex of a camera-facing triangle
-	float3 GetBillboardTrianglePosition(float3 centerWS, uint vertexID, float size /* meters */)
-	{
-		// Unity View Matrix is World->Camera. Inverse View is Camera->World.
-		// Columns 0 and 1 of I_V represent the Camera's Local Right and Up vectors in World Space.
-		float3 cameraRight = normalize(UNITY_MATRIX_I_V._m00_m10_m20);
-		float3 cameraUp    = normalize(UNITY_MATRIX_I_V._m01_m11_m21);
-		
-		float2 offset = float2(0, 0);
-		uint vID = vertexID % 3; // Use modulo 3 in case vertexID > 2
-		
-		if (vID == 0) offset = float2( 0.0,  1.0); // Top Center
-		if (vID == 1) offset = float2( 0.5,  0.0); // Bottom Right
-		if (vID == 2) offset = float2(-0.5,  0.0); // Bottom Left
-
-		// 3. Apply Offset
-		return centerWS + (cameraRight * offset.x * size) + (cameraUp * offset.y * size);
-	}
-
 	// Main Vertex Shader
 	DebugVaryings DebugVert_StrandLodLevels(uint instanceID : SV_InstanceID, uint vertexID : SV_VertexID)
 	{
-		const LODIndices lodDesc = _SolverLODStage[SOLVERLODSTAGE_PHYSICS];
-
 		const uint strandIndex = instanceID;
-		const uint strandParticleBegin = strandIndex * _StrandParticleOffset;
-		
-		uint strandLod = _SolverStrandLodRequests[strandIndex];
-		float3 rootPos = _ParticlePosition[strandParticleBegin].xyz;
 
-		// Render a triangle.
-		float triangleSize = 0.02; 
-		float3 worldPos = GetBillboardTrianglePosition(rootPos, vertexID, triangleSize);
+		// 1. Determine Hierarchy
+		uint debugLodLevel = min((uint)_DebugLod, _LODCount - 1);
+		uint guideIndex = _LODGuideIndex[(debugLodLevel * _StrandCount) + strandIndex];
+
+		// 2. Get Positions
+		float3 childPos = _RootPosition[strandIndex].xyz;
+		float3 guidePos = _RootPosition[guideIndex].xyz;
+
+		// 3. Calculate Vertex Position using Helper
+		float3 finalPos;
+		
+		// If strand is its own guide, snap to center (draws nothing effectively due to zero area, or single point)
+		if (guideIndex == strandIndex)
+		{
+			finalPos = GetBillboardTrianglePosition(childPos, vertexID, 0.02);
+		}
+		else
+		{
+			// Tip at Child, Base at Guide
+			finalPos = GetDirectedTriangleVertex(childPos, guidePos, vertexID, 0.02);
+		}
+		
+		uint strandLod = _SolverStrandLodRequests[guideIndex];
+
+		// 4. Color & Output
+		float3 color = ColorCycle(guideIndex, _LODGuideCount[_LODCount - 1]);
 
 		DebugVaryings output;
-		output.positionCS = FilterClusters(WorldToClip(worldPos), strandIndex, lodDesc);
-		output.pointSize = 1.0;
-		output.color = float4(ColorHeatmap(strandLod, _LODCount), 1.0);
+		output.positionCS = WorldToClip(finalPos);
+		output.pointSize = 20.0;
+		output.color = float4(ColorHeatmap(strandLod, _LODCount), 0.8);
 
 		return output;
 	}

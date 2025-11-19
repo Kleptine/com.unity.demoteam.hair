@@ -609,6 +609,7 @@ namespace Unity.DemoTeam.Hair
 
 			public bool drawStrandRoots;
 			public bool drawStrandLodLevels;
+			public int specificLod;
 			public bool drawStrandParticles;
 			public bool drawStrandVelocities;
 			public bool drawStrandClusters;
@@ -647,8 +648,9 @@ namespace Unity.DemoTeam.Hair
 				drawStrandRoots = false,
 				drawStrandParticles = false,
 				drawStrandVelocities = false,
-				drawStrandClusters = false,
 				drawStrandLodLevels = false,
+				specificLod = -1,
+				drawStrandClusters = false,
 				specificCluster = -1,
 
 				drawCellDensity = false,
