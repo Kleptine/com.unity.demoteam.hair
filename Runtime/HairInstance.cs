@@ -776,6 +776,8 @@ namespace Unity.DemoTeam.Hair
 
 		void UpdateSystemState(CommandBuffer cmd, CommandBufferExecutionFlags cmdFlags, in ExecutiveStep stepDesc)
 		{
+			HairSim.CountersGPU.SimulationSteps.Value += 1;
+			
 			for (int i = 0; i != solverData.Length; i++)
 			{
 				var rootMesh = strandGroupInstances[i].runtimeObjs.rootMesh;
@@ -1199,6 +1201,7 @@ namespace Unity.DemoTeam.Hair
 #endif
 					}
 
+					HairSim.CountersGPU.RenderedGroups.Value += 1;
 					Graphics.RenderMeshIndirect(rparams, mesh, solverData.buffers._SolverLODTopology, 1, topologyIndex);
 #endif
 				}
@@ -1270,6 +1273,7 @@ namespace Unity.DemoTeam.Hair
 				{
 					Graphics.RenderMesh(rparams, meshShadows, 0, Matrix4x4.identity);
 				}
+				HairSim.CountersGPU.RenderedGroups.Value += 1;
 #endif
 			}
 		}

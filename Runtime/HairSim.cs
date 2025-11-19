@@ -78,16 +78,24 @@ namespace Unity.DemoTeam.Hair
 			public static ProfilingSampler DrawVolumeData;
 		}
 
-		static class CountersGPU
+		public static class CountersGPU
 		{
 			public static ProfilerCategory HairSimulation = new ("HairSimulation", ProfilerCategoryColor.Render);
 			
+			// The number of times we issues a graphics render dispatch for a hair group.
+			public static ProfilerCounterValue<int> RenderedGroups
+				= new (HairSimulation, "HairSim.RenderedGroups", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame);
+			
+			// The number of times we stepped a hair group each frame (ie. dispatched compute)
+			public static ProfilerCounterValue<int> SimulationSteps 
+				= new (HairSimulation, "HairSim.SimulationSteps", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame);
+			
 			// Note: This counter may be delayed, because it is set via an async gpu readback. 
 			public static ProfilerCounterValue<int> StagedStrands 
-				= new (HairSimulation, "HairSim.StagedStrands", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame);
+				= new (HairSimulation, "HairSim.StagedStrands (delayed)", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame);
 			
 			public static ProfilerCounterValue<int> SimulatedStrands 
-				= new (HairSimulation, "HairSim.SimulatedStrands", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame);
+				= new (HairSimulation, "HairSim.SimulatedStrands (delayed)", ProfilerMarkerDataUnit.Count, ProfilerCounterOptions.ResetToZeroOnFlush | ProfilerCounterOptions.FlushOnEndOfFrame);
 		}
 
 		static class UniformIDs
