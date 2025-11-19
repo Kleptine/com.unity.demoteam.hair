@@ -61,7 +61,8 @@ HAIRSIM_SOLVERLOD<LODIndices> _SolverLODStage;			// x: lod index lo, y: lod inde
 HAIRSIM_SOLVERLOD<uint2> _SolverLODRange;				// xy: dispatch strand range [begin, end)
 HAIRSIM_SOLVERLODX<uint> _SolverLODDispatch;			// xyz: dispatch args compute, w: dispatch strand count || xyzw: dispatch args draw
 HAIRSIM_SOLVERLODX<uint> _SolverLODTopology;			// x[5]: dispatch args draw indexed
-HAIRSIM_SOLVERLOD<uint> _SolverStrandLodRequests;		// x: LOD level each individual strand requests based on coverage / etc. 255=culled
+HAIRSIM_SOLVERLOD<uint> _SolverStrandLodRequests;		// x: LOD level each individual strand requests based on coverage / etc.
+HAIRSIM_SOLVERLOD<uint> _SolverStrandLod;				// x: Final LOD level for each strand after cluster merging.
 
 HAIRSIM_SOLVERINIT<float4> _InitialParticleOffset;		// xyz: initial particle offset from strand root, w: initial local accumulated weight (gather)
 HAIRSIM_SOLVERINIT<float4> _InitialParticleFrameDelta;	// quat(xyz,w): initial particle material frame delta

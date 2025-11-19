@@ -116,9 +116,9 @@ namespace Unity.DemoTeam.Hair
 			public static int KInitializePostVolume;
 			public static int KLODSelectionInit;
 			public static int KLODSelection;
+			public static int KStrandLODClear;
+			public static int KStrandLODRequest;
 			public static int KStrandLODSelection;
-			public static int KStrandLODRequestBubbleUp;
-			public static int KStrandLODRequestBubbleDown;
 			public static int KLODSelectionPost;
 			public static int KSolveConstraints_GaussSeidelReference;
 			public static int KSolveConstraints_GaussSeidel;
@@ -281,6 +281,7 @@ namespace Unity.DemoTeam.Hair
 				changed |= CreateBuffer(ref solverBuffers._SolverLODDispatch, "SolverLODDispatch", (int)SolverLODDispatch.__COUNT * 4, sizeof(uint), ComputeBufferType.IndirectArguments);
 				changed |= CreateBuffer(ref solverBuffers._SolverLODTopology, "SolverLODTopology", (int)SolverLODTopology.__COUNT * 5, sizeof(uint), ComputeBufferType.IndirectArguments);
 				changed |= CreateBuffer(ref solverBuffers._SolverStrandLodRequests, "SolverStrandLodRequests", strandCount, sizeof(uint));
+				changed |= CreateBuffer(ref solverBuffers._SolverStrandLod, "SolverStrandLod", strandCount, sizeof(uint));
 
 				changed |= CreateBuffer(ref solverBuffers._InitialParticleOffset, "InitialParticleOffset", particleCount, particleStrideVector4);
 				changed |= CreateBuffer(ref solverBuffers._InitialParticleFrameDelta, "InitialParticleFrameDelta", particleCount, particleStrideVector4);
@@ -425,6 +426,7 @@ namespace Unity.DemoTeam.Hair
 			ReleaseBuffer(ref solverBuffers._SolverLODDispatch);
 			ReleaseBuffer(ref solverBuffers._SolverLODTopology);
 			ReleaseBuffer(ref solverBuffers._SolverStrandLodRequests);
+			ReleaseBuffer(ref solverBuffers._SolverStrandLod);
 
 			ReleaseBuffer(ref solverBuffers._InitialParticleOffset);
 			ReleaseBuffer(ref solverBuffers._InitialParticleFrameDelta);
@@ -566,6 +568,7 @@ namespace Unity.DemoTeam.Hair
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverLODDispatch, solverBuffers._SolverLODDispatch);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverLODTopology, solverBuffers._SolverLODTopology);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandLodRequests, solverBuffers._SolverStrandLodRequests);
+			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandLod, solverBuffers._SolverStrandLod);
 
 			target.BindComputeBuffer(SolverData.s_bufferIDs._ParticlePosition, solverBuffers._ParticlePosition);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._ParticlePositionPrev, solverBuffers._ParticlePositionPrev);
@@ -902,21 +905,22 @@ namespace Unity.DemoTeam.Hair
 			BindSolverData(cmd, s_solverCS, SolverKernels.KLODSelection, solverData);
 			cmd.DispatchCompute(s_solverCS, SolverKernels.KLODSelection, 1, 1, 1);
 			
-			// lod strand selection
 			int strandsThreadGroups = ((int)solverData.constants._StrandCount + THREAD_GROUP_SIZE - 1) / THREAD_GROUP_SIZE;
+			
+			// clear strand lod request buffer
+			BindSolverData(cmd, s_solverCS, SolverKernels.KStrandLODClear, solverData);
+			BindVolumeData(cmd, s_solverCS, SolverKernels.KStrandLODClear, volumeData);
+			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODClear, strandsThreadGroups, 1, 1);
+			
+			// lod strand selection
+			BindSolverData(cmd, s_solverCS, SolverKernels.KStrandLODRequest, solverData);
+			BindVolumeData(cmd, s_solverCS, SolverKernels.KStrandLODRequest, volumeData);
+			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODRequest, strandsThreadGroups, 1, 1);
+			
+			// lod bubble down
 			BindSolverData(cmd, s_solverCS, SolverKernels.KStrandLODSelection, solverData);
 			BindVolumeData(cmd, s_solverCS, SolverKernels.KStrandLODSelection, volumeData);
 			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODSelection, strandsThreadGroups, 1, 1);
-			
-			// lod bubble up
-			BindSolverData(cmd, s_solverCS, SolverKernels.KStrandLODRequestBubbleUp, solverData);
-			BindVolumeData(cmd, s_solverCS, SolverKernels.KStrandLODRequestBubbleUp, volumeData);
-			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODRequestBubbleUp, strandsThreadGroups, 1, 1);
-			
-			// lod bubble down
-			BindSolverData(cmd, s_solverCS, SolverKernels.KStrandLODRequestBubbleDown, solverData);
-			BindVolumeData(cmd, s_solverCS, SolverKernels.KStrandLODRequestBubbleDown, volumeData);
-			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODRequestBubbleDown, strandsThreadGroups, 1, 1);
 
 			// schedule readback
 			solverData.buffersReadback._SolverLODStage.ScheduleCopy(cmd, solverData.buffers._SolverLODStage);

@@ -9,9 +9,9 @@
 #pragma kernel KLODSelectionInit						THREAD_GROUP_SIZE=1		F_LOD
 #pragma kernel KLODSelection							THREAD_GROUP_SIZE=1		F_LOD
 #pragma kernel KLODSelectionPost						THREAD_GROUP_SIZE=1		F_LOD
+#pragma kernel KStrandLODClear							THREAD_GROUP_SIZE=64	F_LOD
+#pragma kernel KStrandLODRequest						THREAD_GROUP_SIZE=64	F_LOD
 #pragma kernel KStrandLODSelection						THREAD_GROUP_SIZE=64	F_LOD
-#pragma kernel KStrandLODRequestBubbleUp				THREAD_GROUP_SIZE=64	F_LOD
-#pragma kernel KStrandLODRequestBubbleDown				THREAD_GROUP_SIZE=64	F_LOD
 
 #pragma kernel KInitialize								THREAD_GROUP_SIZE=64	F_INIT
 #pragma kernel KInitializePostVolume					THREAD_GROUP_SIZE=64	F_INIT
@@ -944,12 +944,33 @@ void KLODSelection(
 	WriteIndirectDispatch(SOLVERLODDISPATCH_RASTER_QUADS_ALL,		ResolveDrawParallelParticles(countSolve + countInterpolate, 8));
 }
 
+/// Clears the strand request buffer from the last frame, in preparation for the selection process.
+[numthreads(THREAD_GROUP_SIZE, 1, 1)]
+void KStrandLODClear(
+	uint3 groupIdx : SV_GroupID,
+	uint3 localIdx : SV_GroupThreadID,
+	uint3 worldIdx : SV_DispatchThreadID,
+	uint threadIdx : SV_GroupIndex)
+	// SV_GroupID           execution group coords
+	// SV_GroupThreadID     thread coords within execution group
+	// SV_DispatchThreadID  thread coords (global)
+	// SV_GroupIndex        thread offset within execution group
+{
+	DECLARE_STRAND(worldIdx.x);
+	
+	_SolverStrandLodRequests[strandIndex] = 0;
+	
+	// Lod buffer doesn't need to be cleared because that is write-only.
+}
+
 // Stage 1 of the per-strand LOD algorithm.
 // This kernel calculates the ideal, requested LOD level for each strand. This is the guide strand they would like 
 // to follow in the simulation (or _LodCount-1 if the strand wants to acting as its own guide).
-// These requested LOD levels will be reconciled through the cluster hierarchy in the later passes.
+// 
+// This request is then bubbled up through the parent guides via InterlockedMax so that guides all have a request 
+// at least as high as their children.
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
-void KStrandLODSelection(
+void KStrandLODRequest(
 	uint3 groupIdx : SV_GroupID,
 	uint3 localIdx : SV_GroupThreadID,
 	uint3 worldIdx : SV_DispatchThreadID,
@@ -971,7 +992,7 @@ void KStrandLODSelection(
 	// We currently LOD based on how far away each strand is from the camera (number of pixels the strand length is on screen).
 	// todo: We should probably LOD based on the size of the parent clusters. A strand can be lod'd until the cluster
 	// it is a part of reaches a certain size on screen (which can be our toplevel configuration). This may be slower though.
-	int lod = 0;
+	uint lod = 0;
 	for (uint f = 0; f < _LODFrustumCount; ++f)
 	{
 		LODFrustum lodFrustum = _LODFrustum[f];
@@ -984,29 +1005,11 @@ void KStrandLODSelection(
 		lod = max(lod, (uint) round(Remap(20, 100, 0, _LODCount - 1, clampedCoverage)));
 	}
 	
-	_SolverStrandLodRequests[strandIndex] = lod;
-}
-
-// This kernel calculates the maximum LOD request for each strand. For each strand, it's the maximum lod level from itself
-// and any strands that requested it as a guide in the previous phase. You can think of this as bubbling up the LOD request
-// values through the strand cluster hieararchy, applying the max operator.
-[numthreads(THREAD_GROUP_SIZE, 1, 1)]
-void KStrandLODRequestBubbleUp(
-	uint3 groupIdx : SV_GroupID,
-	uint3 localIdx : SV_GroupThreadID,
-	uint3 worldIdx : SV_DispatchThreadID,
-	uint threadIdx : SV_GroupIndex)
-	// SV_GroupID           execution group coords
-	// SV_GroupThreadID     thread coords within execution group
-	// SV_DispatchThreadID  thread coords (global)
-	// SV_GroupIndex        thread offset within execution group
-{
-	DECLARE_STRAND(worldIdx.x);
-
-	// 1. Read the LOD level requested by this specific strand (calculated in the Selection phase)
-	uint myLodRequest = _SolverStrandLodRequests[strandIndex];
-
-	// 2. Propagate (Bubble Up) this request to my guides.
+	// Calculates the maximum LOD request for each strand. For each strand, it's the maximum lod level from itself
+	// and any strands that requested it as a guide in the previous phase. You can think of this as bubbling up the LOD request
+	// values through the strand cluster hieararchy, applying the max operator.
+	
+	// Propagate (Bubble Up) this request to my guides.
 	// We iterate through the available LOD levels to find which strands act as guides for *this* strand.
 	// _LODGuideIndex maps [LOD_Level][Strand_Index] -> Guide_Index.
 	for (uint i = 0; i < _LODCount; i++)
@@ -1014,11 +1017,11 @@ void KStrandLODRequestBubbleUp(
 		// Look up who my guide is at this specific LOD level
 		// (Note: Buffer layout assumed based on Interpolate kernel: [LOD * StrandCount + StrandIndex])
 		uint guideIndex = _LODGuideIndex[(i * _StrandCount) + strandIndex];
-
+	
 		// 3. Atomic Max ensures thread safety. 
 		// Multiple children might try to update the same guide simultaneously. 
 		// This writes the MAX value of (CurrentGuideLOD, MyLOD) into the guide's slot.
-		InterlockedMax(_SolverStrandLodRequests[guideIndex], myLodRequest);
+		InterlockedMax(_SolverStrandLodRequests[guideIndex], lod);
 	}
 }
 
@@ -1032,7 +1035,7 @@ void KStrandLODRequestBubbleUp(
 /// Another way to think about it: it propagates a cluster's LOD level down to its children, so that it can then
 /// cull all of them from the simulation and manage the entire bulk as a single guide.
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
-void KStrandLODRequestBubbleDown(
+void KStrandLODSelection(
 	uint3 groupIdx : SV_GroupID,
 	uint3 localIdx : SV_GroupThreadID,
 	uint3 worldIdx : SV_DispatchThreadID,
@@ -1044,15 +1047,13 @@ void KStrandLODRequestBubbleDown(
 {
 	DECLARE_STRAND(worldIdx.x);
 
-	for (int lodLevel = 0; lodLevel < _LODCount; lodLevel++)
+	for (uint lodLevel = 0; lodLevel < _LODCount; lodLevel++)
 	{
 		// 1. Find my guide `G` at the current level `L`.
 		uint guide = _LODGuideIndex[lodLevel * _StrandCount + strandIndex];
-
-		// 2. 
 		uint guideLodRequirement = _SolverStrandLodRequests[guide];
 
-		// 3. Check if this lodlevel is sufficient to meet the guide's requirement, set it on the child.
+		// 2. Check if this lodlevel is sufficient to meet the guide's requirement, set it on the child.
 		if (guideLodRequirement < lodLevel)
 		{
 			// This is the first (coarsest) level where this guide is sufficient.
@@ -1061,7 +1062,7 @@ void KStrandLODRequestBubbleDown(
     
 			// We only write the result if a finer LOD hasn't already been stamped.
 			// This ensures the "minimum sufficient L" is chosen.
-			_SolverStrandLodRequests[strandIndex] = lodLevel;
+			_SolverStrandLod[strandIndex] = lodLevel;
 			break;
 		}
 	}

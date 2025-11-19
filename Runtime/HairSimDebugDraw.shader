@@ -249,7 +249,7 @@
 		// 1. Determine Hierarchy
 		uint debugLodLevel = min((uint)_DebugLod, _LODCount - 1);
 		
-		uint strandLod = _SolverStrandLodRequests[strandIndex];
+		uint strandLod = _SolverStrandLod[strandIndex];
 		uint guideIndex = _LODGuideIndex[(debugLodLevel * _StrandCount) + strandIndex];
 		
 		if (_DebugLod < 0)
