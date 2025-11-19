@@ -117,6 +117,8 @@ namespace Unity.DemoTeam.Hair
 			public static int KLODSelectionInit;
 			public static int KLODSelection;
 			public static int KStrandLODSelection;
+			public static int KStrandLODRequestBubbleUp;
+			public static int KStrandLODRequestBubbleDown;
 			public static int KLODSelectionPost;
 			public static int KSolveConstraints_GaussSeidelReference;
 			public static int KSolveConstraints_GaussSeidel;
@@ -910,6 +912,11 @@ namespace Unity.DemoTeam.Hair
 			BindSolverData(cmd, s_solverCS, SolverKernels.KStrandLODRequestBubbleUp, solverData);
 			BindVolumeData(cmd, s_solverCS, SolverKernels.KStrandLODRequestBubbleUp, volumeData);
 			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODRequestBubbleUp, strandsThreadGroups, 1, 1);
+			
+			// lod bubble down
+			BindSolverData(cmd, s_solverCS, SolverKernels.KStrandLODRequestBubbleDown, solverData);
+			BindVolumeData(cmd, s_solverCS, SolverKernels.KStrandLODRequestBubbleDown, volumeData);
+			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODRequestBubbleDown, strandsThreadGroups, 1, 1);
 
 			// schedule readback
 			solverData.buffersReadback._SolverLODStage.ScheduleCopy(cmd, solverData.buffers._SolverLODStage);

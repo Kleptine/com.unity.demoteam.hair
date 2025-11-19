@@ -11,6 +11,7 @@
 #pragma kernel KLODSelectionPost						THREAD_GROUP_SIZE=1		F_LOD
 #pragma kernel KStrandLODSelection						THREAD_GROUP_SIZE=64	F_LOD
 #pragma kernel KStrandLODRequestBubbleUp				THREAD_GROUP_SIZE=64	F_LOD
+#pragma kernel KStrandLODRequestBubbleDown				THREAD_GROUP_SIZE=64	F_LOD
 
 #pragma kernel KInitialize								THREAD_GROUP_SIZE=64	F_INIT
 #pragma kernel KInitializePostVolume					THREAD_GROUP_SIZE=64	F_INIT
@@ -1018,6 +1019,51 @@ void KStrandLODRequestBubbleUp(
 		// Multiple children might try to update the same guide simultaneously. 
 		// This writes the MAX value of (CurrentGuideLOD, MyLOD) into the guide's slot.
 		InterlockedMax(_SolverStrandLodRequests[guideIndex], myLodRequest);
+	}
+}
+
+/// This kernel walks down from the root and finds the first guide strand that satisfies this strand's LOD requirement.
+/// Then, it sets the final LOD index to that guide (cluster). This ensures that the carried threads by guide strands 
+/// do not overlap and simulate the same density twice. 
+/// 
+/// It has the overall effect of finding a 'frontier' assignment of LODs that meet the requests. This is the minimum
+/// assignment of LOD clusters that meets or exceeds the LOD requests by individual strands.
+/// 
+/// Another way to think about it: it propagates a cluster's LOD level down to its children, so that it can then
+/// cull all of them from the simulation and manage the entire bulk as a single guide.
+[numthreads(THREAD_GROUP_SIZE, 1, 1)]
+void KStrandLODRequestBubbleDown(
+	uint3 groupIdx : SV_GroupID,
+	uint3 localIdx : SV_GroupThreadID,
+	uint3 worldIdx : SV_DispatchThreadID,
+	uint threadIdx : SV_GroupIndex)
+	// SV_GroupID           execution group coords
+	// SV_GroupThreadID     thread coords within execution group
+	// SV_DispatchThreadID  thread coords (global)
+	// SV_GroupIndex        thread offset within execution group
+{
+	DECLARE_STRAND(worldIdx.x);
+
+	for (int lodLevel = 0; lodLevel < _LODCount; lodLevel++)
+	{
+		// 1. Find my guide `G` at the current level `L`.
+		uint guide = _LODGuideIndex[lodLevel * _StrandCount + strandIndex];
+
+		// 2. 
+		uint guideLodRequirement = _SolverStrandLodRequests[guide];
+
+		// 3. Check if this lodlevel is sufficient to meet the guide's requirement, set it on the child.
+		if (guideLodRequirement < lodLevel)
+		{
+			// This is the first (coarsest) level where this guide is sufficient.
+			// Therefore, this guide (and by extension, the strand `i` we are processing)
+			// belongs to the frontier defined at level `L`.
+    
+			// We only write the result if a finer LOD hasn't already been stamped.
+			// This ensures the "minimum sufficient L" is chosen.
+			_SolverStrandLodRequests[strandIndex] = lodLevel;
+			break;
+		}
 	}
 }
 	

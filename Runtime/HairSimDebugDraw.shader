@@ -244,10 +244,18 @@
 	DebugVaryings DebugVert_StrandLodLevels(uint instanceID : SV_InstanceID, uint vertexID : SV_VertexID)
 	{
 		const uint strandIndex = instanceID;
+		const float triangleSize = .2;
 
 		// 1. Determine Hierarchy
 		uint debugLodLevel = min((uint)_DebugLod, _LODCount - 1);
+		
+		uint strandLod = _SolverStrandLodRequests[strandIndex];
 		uint guideIndex = _LODGuideIndex[(debugLodLevel * _StrandCount) + strandIndex];
+		
+		if (_DebugLod < 0)
+		{
+			guideIndex = _LODGuideIndex[(strandLod * _StrandCount) + strandIndex];
+		}
 
 		// 2. Get Positions
 		float3 childPos = _RootPosition[strandIndex].xyz;
@@ -259,18 +267,14 @@
 		// If strand is its own guide, snap to center (draws nothing effectively due to zero area, or single point)
 		if (guideIndex == strandIndex)
 		{
-			finalPos = GetBillboardTrianglePosition(childPos, vertexID, 0.02);
+			finalPos = GetBillboardTrianglePosition(childPos, vertexID, triangleSize);
 		}
 		else
 		{
 			// Tip at Child, Base at Guide
-			finalPos = GetDirectedTriangleVertex(childPos, guidePos, vertexID, 0.02);
+			finalPos = GetDirectedTriangleVertex(childPos, guidePos, vertexID, triangleSize);
 		}
 		
-		uint strandLod = _SolverStrandLodRequests[guideIndex];
-
-		// 4. Color & Output
-		float3 color = ColorCycle(guideIndex, _LODGuideCount[_LODCount - 1]);
 
 		DebugVaryings output;
 		output.positionCS = WorldToClip(finalPos);
