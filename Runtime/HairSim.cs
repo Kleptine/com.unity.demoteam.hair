@@ -901,10 +901,15 @@ namespace Unity.DemoTeam.Hair
 			cmd.DispatchCompute(s_solverCS, SolverKernels.KLODSelection, 1, 1, 1);
 			
 			// lod strand selection
+			int strandsThreadGroups = ((int)solverData.constants._StrandCount + THREAD_GROUP_SIZE - 1) / THREAD_GROUP_SIZE;
 			BindSolverData(cmd, s_solverCS, SolverKernels.KStrandLODSelection, solverData);
 			BindVolumeData(cmd, s_solverCS, SolverKernels.KStrandLODSelection, volumeData);
-			int groups = ((int)solverData.constants._StrandCount + THREAD_GROUP_SIZE - 1) / THREAD_GROUP_SIZE;
-			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODSelection, groups, 1, 1);
+			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODSelection, strandsThreadGroups, 1, 1);
+			
+			// lod bubble up
+			BindSolverData(cmd, s_solverCS, SolverKernels.KStrandLODRequestBubbleUp, solverData);
+			BindVolumeData(cmd, s_solverCS, SolverKernels.KStrandLODRequestBubbleUp, volumeData);
+			cmd.DispatchCompute(s_solverCS, SolverKernels.KStrandLODRequestBubbleUp, strandsThreadGroups, 1, 1);
 
 			// schedule readback
 			solverData.buffersReadback._SolverLODStage.ScheduleCopy(cmd, solverData.buffers._SolverLODStage);
