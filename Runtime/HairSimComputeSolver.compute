@@ -12,6 +12,7 @@
 #pragma kernel KStrandLODClear							THREAD_GROUP_SIZE=64	F_LOD
 #pragma kernel KStrandLODRequest						THREAD_GROUP_SIZE=64	F_LOD
 #pragma kernel KStrandLODSelection						THREAD_GROUP_SIZE=64	F_LOD
+#pragma kernel KStrandLODFinish							THREAD_GROUP_SIZE=1		F_LOD
 
 #pragma kernel KInitialize								THREAD_GROUP_SIZE=64	F_INIT
 #pragma kernel KInitializePostVolume					THREAD_GROUP_SIZE=64	F_INIT
@@ -962,6 +963,7 @@ void KStrandLODClear(
 	DECLARE_STRAND(worldIdx.x);
 	
 	_SolverStrandLodRequests[strandIndex] = 0;
+	_SolverStrandCount[0] = 0;
 	
 	// Lod buffer doesn't need to be cleared because that is write-only.
 }
@@ -1050,15 +1052,16 @@ void KStrandLODSelection(
 {
 	DECLARE_STRAND(worldIdx.x);
 
-	uint lodLevel;
-	for (lodLevel = 0; lodLevel < _LODCount; lodLevel++)
+	uint finalLodLevel = _LODCount - 1; 
+
+	for (uint lodLevel = 0; lodLevel < _LODCount; lodLevel++)
 	{
 		// 1. Find my guide `G` at the current level `L`.
 		uint guide = _LODGuideIndex[lodLevel * _StrandCount + strandIndex];
 		uint guideLodRequirement = _SolverStrandLodRequests[guide];
 
 		// 2. Check if this lodlevel is sufficient to meet the guide's requirement, set it on the child.
-		if (guideLodRequirement < lodLevel)
+		if (guideLodRequirement <= lodLevel)
 		{
 			// This is the first (coarsest) level where this guide is sufficient.
 			// Therefore, this guide (and by extension, the strand `i` we are processing)
@@ -1066,14 +1069,16 @@ void KStrandLODSelection(
     
 			// We only write the result if a finer LOD hasn't already been stamped.
 			// This ensures the "minimum sufficient L" is chosen.
-			_SolverStrandLod[strandIndex] = lodLevel;
+			finalLodLevel = lodLevel;
 			break;
 		}
 	}
 	
+	_SolverStrandLod[strandIndex] = finalLodLevel;
+	
 	// Determine whether this strand should be simulated. If so, compact it into our big buffer of indices.
 	// A strand is simulated if it is its own guide at the final LOD level
-	uint guide = _LODGuideIndex[lodLevel * _StrandCount + strandIndex];
+	uint guide = _LODGuideIndex[finalLodLevel * _StrandCount + strandIndex];
 	if (guide == strandIndex)
 	{
 		uint simulationIndex;
@@ -1087,6 +1092,30 @@ void KStrandLODSelection(
 	}
 }
 	
+// This kernel writes the final strand counts into the dispatch buffers that are used for dispatching the solver kernels.
+// This could likely be removed in favor of interlocking add on these buffers directly, however it would be a little tricky.
+[numthreads(1, 1, 1)]
+void KStrandLODFinish(
+	uint3 groupIdx : SV_GroupID,
+	uint3 localIdx : SV_GroupThreadID,
+	uint3 worldIdx : SV_DispatchThreadID,
+	uint threadIdx : SV_GroupIndex)
+	// SV_GroupID           execution group coords
+	// SV_GroupThreadID     thread coords within execution group
+	// SV_DispatchThreadID  thread coords (global)
+	// SV_GroupIndex        thread offset within execution group
+{
+	// Update the solver ranges to match the total number of strands resulting from our strand LOD kernels.
+	uint solverStrandCount = _SolverStrandCount[0];
+	_SolverLODRange[SOLVERLODRANGE_SOLVE].y = solverStrandCount;
+	WriteIndirectDispatch(SOLVERLODDISPATCH_SOLVE,					ResolveDispatchParallelStrands(solverStrandCount));
+	WriteIndirectDispatch(SOLVERLODDISPATCH_SOLVE_GROUP_PARTICLES,	ResolveDispatchParallelParticlesEachStrand(solverStrandCount));
+	
+	// The volume splat (transfer) kernels should only splat simulated strands.
+	WriteIndirectDispatch(SOLVERLODDISPATCH_TRANSFER,					ResolveDispatchParallelParticles(solverStrandCount));
+	WriteIndirectDispatch(SOLVERLODDISPATCH_TRANSFER_ALL,					ResolveDispatchParallelParticles(solverStrandCount));
+
+}
 
 uint2 ResolveDrawIndexedLine()
 {
@@ -1123,7 +1152,7 @@ void WriteIndirectTopology(uint index, uint2 args)
 }
 
 // Fills out the _SolveLODTopology buffer, which contains the instanced dispatch commands for the final strand
-// rendering draw call. This runs after the LOD selection is done, but before the vertex shader and actual rendering.
+// rendering draw call. This runs after the LOD selection and the simulation is done, but before the vertex shader and actual rendering.
 //
 // This kernel writes render commands for all possible types of render topologies (lines, strips, etc), but the CPU
 // render call only issues the final dispatch pointing at the command in this buffer for the correct topology type.
@@ -1139,6 +1168,7 @@ void KLODSelectionPost(
 	// SV_GroupIndex        thread offset within execution group
 {
 	_SolverLODRange[SOLVERLODRANGE_RENDER].y = _RenderStrandCount[0];
+
 	uint countRender = _SolverLODRange[SOLVERLODRANGE_RENDER].y;
 	uint countRenderBatchSize = min(countRender, INSTANCING_BATCH_SIZE);
 	uint countRenderBatchCount = (countRender + INSTANCING_BATCH_SIZE - 1) / INSTANCING_BATCH_SIZE;
@@ -1178,7 +1208,7 @@ void KSolveConstraints_GaussSeidelReference(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_STRAND_WITHIN(worldIdx.x, _SolverLODRange[SOLVERLODRANGE_SOLVE]);
+	DECLARE_STRAND(worldIdx.x);
 
 	// clear corrections
 	if (ENABLE_DISTANCE_FTL)
@@ -1736,7 +1766,8 @@ void KSolveConstraints_GaussSeidel(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_STRAND_WITHIN(worldIdx.x, _SolverLODRange[SOLVERLODRANGE_SOLVE]);
+	uint strandIdx = _SolverStrandIndices[worldIdx.x];
+	DECLARE_STRAND(strandIdx);
 
 	PrepareStrandProperties(strandIndex);
 
@@ -1838,8 +1869,8 @@ void KSolveConstraints_Jacobi(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	//DECLARE_STRAND_WITHIN(groupIdx.x, _SolverLODRange[SOLVERLODRANGE_SOLVE]);
-	DECLARE_STRAND(groupIdx.x);//TODO
+	uint strandIdx = _SolverStrandIndices[groupIdx.x];
+	DECLARE_STRAND_UNCHECKED(strandIdx);//TODO
 
 	const uint i = strandParticleBegin + strandParticleStride * threadIdx;
 	const uint j = threadIdx + 1;// for data in group shared memory (gs_*)

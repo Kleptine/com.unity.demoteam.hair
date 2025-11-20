@@ -250,8 +250,8 @@
 		uint debugLodLevel = min((uint)_DebugLod, _LODCount - 1);
 		
 		uint strandLod = _SolverStrandLod[strandIndex];
-		uint guideIndex = _LODGuideIndex[(debugLodLevel * _StrandCount) + strandIndex];
 		
+		uint guideIndex = _LODGuideIndex[(debugLodLevel * _StrandCount) + strandIndex];
 		if (_DebugLod < 0)
 		{
 			guideIndex = _LODGuideIndex[(strandLod * _StrandCount) + strandIndex];
@@ -623,10 +623,9 @@
 		// Renders the final strand LOD levels after fine-grained lod calculation.
 		Pass // 9 == STRAND LOD LEVELS
 		{
-			ZTest Less
+			ZTest Off
 			
 			HLSLPROGRAM
-			
 
 			#pragma vertex DebugVert_StrandLodLevels
 			#pragma fragment DebugFrag

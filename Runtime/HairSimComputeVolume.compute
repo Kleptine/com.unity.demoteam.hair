@@ -174,14 +174,18 @@
 void KVolumeSplat(
 	uint3 groupIdx : SV_GroupID,
 	uint3 localIdx : SV_GroupThreadID,
-	uint3 worldIdx : SV_DispatchThreadID,
+	uint3 worldIdx : SV_DispatchThreadID, // particle index
 	uint threadIdx : SV_GroupIndex)
 	// SV_GroupID           execution group coords
 	// SV_GroupThreadID     thread coords within execution group
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_SPLAT_PARTICLE(worldIdx.x);
+	uint strandIdx = worldIdx.x / _StrandParticleCount;
+	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
+	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
+	
+	DECLARE_SPLAT_PARTICLE(particleIdx);
 
 	const float3 p = _ParticlePosition[particleIndex].xyz;
 	const float3 v = _ParticleVelocity[particleIndex].xyz;
@@ -228,7 +232,10 @@ void KVolumeSplatDensity(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_SPLAT_PARTICLE(worldIdx.x);
+	uint strandIdx = worldIdx.x / _StrandParticleCount;
+	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
+	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
+	DECLARE_SPLAT_PARTICLE(particleIdx);
 
 	const float3 p = _ParticlePosition[particleIndex].xyz;
 	const float3 v = _ParticleVelocity[particleIndex].xyz;
@@ -263,7 +270,10 @@ void KVolumeSplatVelocityX(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_SPLAT_PARTICLE(worldIdx.x);
+	uint strandIdx = worldIdx.x / _StrandParticleCount;
+	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
+	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
+	DECLARE_SPLAT_PARTICLE(particleIdx);
 
 	const float3 p = _ParticlePosition[particleIndex].xyz;
 	const float3 v = _ParticleVelocity[particleIndex].xyz;
@@ -290,7 +300,10 @@ void KVolumeSplatVelocityY(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_SPLAT_PARTICLE(worldIdx.x);
+	uint strandIdx = worldIdx.x / _StrandParticleCount;
+	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
+	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
+	DECLARE_SPLAT_PARTICLE(particleIdx);
 
 	const float3 p = _ParticlePosition[particleIndex].xyz;
 	const float3 v = _ParticleVelocity[particleIndex].xyz;
@@ -317,7 +330,10 @@ void KVolumeSplatVelocityZ(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_SPLAT_PARTICLE(worldIdx.x);
+	uint strandIdx = worldIdx.x / _StrandParticleCount;
+	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
+	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
+	DECLARE_SPLAT_PARTICLE(particleIdx);
 
 	const float3 p = _ParticlePosition[particleIndex].xyz;
 	const float3 v = _ParticleVelocity[particleIndex].xyz;

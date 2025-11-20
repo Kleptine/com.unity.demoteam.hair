@@ -1,0 +1,3 @@
+There a short list of bugs that still exist:
+
+-  The preview windows (ie. the sphere icon that shows when selecting the HairMaterialDefaultLitSRP in the inspector) fail to render correctly, because no compute buffers are bound. Either we need to intercept those render calls and bind some dummy data (tricky) or we need to find a way to swap out the shader for the preview / branch on the preview to remove those compute buffers.
