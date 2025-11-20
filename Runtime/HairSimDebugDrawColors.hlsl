@@ -54,10 +54,10 @@ float3 ColorGradient(float3 n)
 	//return abs(n.zzz);
 
 	float d = dot(n, n);
-	if (d > 1e-11)
+	if (d > 1e-12)
 		return 0.5 + 0.5 * (n * rsqrt(d));
 	else
-		return 0.0;
+		return 0.5;
 
 	//return (0.5 + 0.5 * normalize(n.xzy));
 }
