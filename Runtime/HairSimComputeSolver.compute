@@ -987,12 +987,13 @@ void KStrandLODRequest(
 {
 	DECLARE_STRAND(worldIdx.x);
 	
-	float3 rootPos = _ParticlePosition[strandParticleBegin];
-	float3 tipPos = _ParticlePosition[strandParticleEnd - _StrandParticleStride];
+	// We use the Root Position because Particle Position buffer is not yet available until after the solver runs.
+	float3 rootPos = _RootPosition[strandIndex];
 	
 	// Strand properties (world space)
 	float3 strandCenter = rootPos;
-	float strandDiameter = length(rootPos - tipPos); 
+	float strandLength = _RootScale[strandIndex].x * (_GroupMaxParticleInterval * (_StrandParticleCount - 1));
+
 	
 	// We currently LOD based on how far away each strand is from the camera (number of pixels the strand length is on screen).
 	// todo: We should probably LOD based on the size of the parent clusters. A strand can be lod'd until the cluster
@@ -1002,7 +1003,7 @@ void KStrandLODRequest(
 	{
 		LODFrustum lodFrustum = _LODFrustum[f];
 		float curveDepth = dot(lodFrustum.cameraForward, strandCenter - lodFrustum.cameraPosition);
-		float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, strandDiameter);
+		float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, strandLength);
 		
 		// LODing is based on number of pixels on screen. 
 		// todo: We need to multiply by the LOD scaling parameters!
