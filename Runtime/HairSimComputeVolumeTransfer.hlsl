@@ -3,6 +3,7 @@
 
 #include "HairSimData.hlsl"
 
+// Gets the strand index from the index, from a dispatch with an index in a particle-sized buffer.
 uint GetParticleStrandIndex(uint particleIndex)
 {
 #if LAYOUT_INTERLEAVED
@@ -12,28 +13,34 @@ uint GetParticleStrandIndex(uint particleIndex)
 #endif
 }
 
+// How many particle's worth of weight this strand is carrying. Depends on the selected LOD of the strand, 
+// and is used when a guide strand is representing a cluster of strands underneath it.
 float GetParticleLODCarry(uint particleIndex)
 {
 #if VOLUME_SPLAT_CLUSTERS
-	LODIndices lodDesc = _SolverLODStage[SOLVERLODSTAGE_PHYSICS];
+	int strandIndex = GetParticleStrandIndex(particleIndex);
+	uint lod = _SolverStrandLod[strandIndex];
+	return _LODGuideCarry[(lod * _StrandCount) + strandIndex];
 
-	//TODO check if it's worth doing this in practice
+	//TODO check if it's worth blending between lods in practice
 	//uint strandIndex = GetParticleStrandIndex(particleIndex);
 	//float strandCarryLo = _LODGuideCarry[(lodDesc.lodIndexLo * _StrandCount) + strandIndex];
 	//float strandCarryHi = _LODGuideCarry[(lodDesc.lodIndexHi * _StrandCount) + strandIndex];
 	//return lerp(strandCarryLo, strandCarryHi, lodDesc.lodBlendFrac);
-
-	return _LODGuideCarry[(lodDesc.lodIndexHi * _StrandCount) + GetParticleStrandIndex(particleIndex)];
 #else
 	return 1.0;
 #endif
 }
 
+// Gets the carry weight of a particle, indexed within a particle-sized buffer.
 float GetParticleVolumeWeight(uint particleIndex)
 {
-	float2 S = _RootScale[GetParticleStrandIndex(particleIndex)].xy;
-	float V = (_GroupMaxParticleVolume) * (S.x * S.y * S.y);
-	return (V * GetParticleLODCarry(particleIndex)) / _AllGroupsMaxParticleVolume;
+	int strandIndex = GetParticleStrandIndex(particleIndex);
+	
+	float2 scale = _RootScale[strandIndex].xy;
+	float volume = (_GroupMaxParticleVolume) * (scale.x * scale.y * scale.y);
+	
+	return (volume * GetParticleLODCarry(particleIndex)) / _AllGroupsMaxParticleVolume;
 }
 
 #define WEIGHT_BITS 16

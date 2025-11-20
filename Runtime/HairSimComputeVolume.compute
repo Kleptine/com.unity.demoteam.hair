@@ -181,6 +181,8 @@ void KVolumeSplat(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
+	// This calculation works fine for both Interleaved and Sequential memory layouts.
+	// Although the names may be a little off.
 	uint strandIdx = worldIdx.x / _StrandParticleCount;
 	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
 	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
