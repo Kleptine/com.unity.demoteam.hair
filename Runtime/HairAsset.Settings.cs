@@ -126,7 +126,7 @@ namespace Unity.DemoTeam.Hair
 
 			[LineHeader("Proportions")]
 
-			[Range(0.001f, 5.0f), Tooltip("Strand length (in meters)")]
+			[Range(0.001f, 100.0f), Tooltip("Strand length (in meters)")]
 			public float strandLength;
 			[ToggleGroup, Tooltip("Enable this to vary the strand lengths")]
 			public bool strandLengthVariation;

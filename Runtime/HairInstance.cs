@@ -1536,6 +1536,7 @@ namespace Unity.DemoTeam.Hair
 						solverData[i].initialStrandParamsAvg = groupAsset.strandParamsAvg;
 
 						solverData[i].lodThreshold = new NativeArray<float>(groupAsset.lodThreshold, Allocator.Persistent);
+						solverData[i]._StrandTileMaskSizeOffset = new Vector4(1, 1, 0, 0);
 					}
 
 					using (var uploadCtx = new HairSimUtility.BufferUploadContext(cmd, cmdFlags))

@@ -1,8 +1,8 @@
 ﻿//#pragma use_dxc
 //#pragma enable_d3d11_debug_symbols
 
-#pragma kernel KRoots									THREAD_GROUP_SIZE=64	F_INPUT
 #pragma kernel KRootsHistory							THREAD_GROUP_SIZE=64	F_INPUT
+#pragma kernel KRoots									THREAD_GROUP_SIZE=64	F_INPUT
 #pragma kernel KRootsHistoryAdd							THREAD_GROUP_SIZE=64	F_INPUT
 #pragma kernel KRootsSubstep							THREAD_GROUP_SIZE=64	F_INPUT
 
@@ -30,7 +30,11 @@
 #pragma kernel KStagingHistory							THREAD_GROUP_SIZE=64	F_STAGING
 #pragma kernel KStagingHistoryAdd						THREAD_GROUP_SIZE=64	F_STAGING
 
+// #define F_SOLVE 1
 #define F_LOD 1
+#define F_INTERPOLATE 1
+#define F_STAGING 1
+
 
 //----------
 // includes
@@ -587,6 +591,33 @@ ByteAddressBuffer _RootMeshPosition;
 ByteAddressBuffer _RootMeshTangent;
 ByteAddressBuffer _RootMeshNormal;
 
+// This kernel runs only at initialization of the hair group. It primes _RootPosition and _RootPositionPrev buffer to be
+// equal to the current frame's root position. Note: The actual history swap between _RootPosition and _RootPositionPrev 
+// happens due to double buffering in C#. Runs over all strands.
+[numthreads(THREAD_GROUP_SIZE, 1, 1)]
+void KRootsHistory(
+	uint3 groupIdx : SV_GroupID,
+	uint3 localIdx : SV_GroupThreadID,
+	uint3 worldIdx : SV_DispatchThreadID,
+	uint threadIdx : SV_GroupIndex)
+	// SV_GroupID           execution group coords
+	// SV_GroupThreadID     thread coords within execution group
+	// SV_DispatchThreadID  thread coords (global)
+	// SV_GroupIndex        thread offset within execution group
+{
+	DECLARE_STRAND(worldIdx.x)
+
+	_RootPositionPrev[strandIndex] = _RootPositionNext[strandIndex];
+	_RootPosition[strandIndex] = _RootPositionNext[strandIndex];
+
+	_RootFramePrev[strandIndex] = _RootFrameNext[strandIndex];
+	_RootFrame[strandIndex] = _RootFrameNext[strandIndex];
+}
+
+
+// This kernel calculates where the root positions should be at the end of the current frame and writes them to _RootPositionNext & _RootFrameNext.
+// The actual solver then uses a separate sub-stepping of the root positions (updated into _RootPosition) to ensure smooth motion and velocities.
+// Runs over all strands.
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KRoots(
 	uint3 groupIdx : SV_GroupID,
@@ -613,26 +644,14 @@ void KRoots(
 	);
 }
 
-[numthreads(THREAD_GROUP_SIZE, 1, 1)]
-void KRootsHistory(
-	uint3 groupIdx : SV_GroupID,
-	uint3 localIdx : SV_GroupThreadID,
-	uint3 worldIdx : SV_DispatchThreadID,
-	uint threadIdx : SV_GroupIndex)
-	// SV_GroupID           execution group coords
-	// SV_GroupThreadID     thread coords within execution group
-	// SV_DispatchThreadID  thread coords (global)
-	// SV_GroupIndex        thread offset within execution group
-{
-	DECLARE_STRAND(worldIdx.x)
-
-	_RootPositionPrev[strandIndex] = _RootPositionNext[strandIndex];
-	_RootPosition[strandIndex] = _RootPositionNext[strandIndex];
-
-	_RootFramePrev[strandIndex] = _RootFrameNext[strandIndex];
-	_RootFrame[strandIndex] = _RootFrameNext[strandIndex];
-}
-
+// todo: We are removing this kernel -- it no longer makes sense, since strands are only ever interpolated for rendered strands, now, not for simulated strands.
+// Should be called RootsInterpolatedBackfill
+// Since the _RootPosition buffer only updated for strands being simulated, the _RootPositionPrev buffer would 
+// contain old data for any strands that are newly interpolated this frame. This kernel makes sure that newly interpolated
+// strands have sensible root velocity (zero) by backfilling _RootPositionPrev to be _RootPositionNext.
+// Runs just before the solver steps begin.
+// Runs over all interpolated strands, limited in the kernel to only those that are new.
+// Note: We might be able to backfill a smooth velocity somehow, but in our cases roots very rarely move anyway.
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KRootsHistoryAdd(
 	uint3 groupIdx : SV_GroupID,
@@ -644,11 +663,13 @@ void KRootsHistoryAdd(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_STRAND_WITHIN(worldIdx.x, _SolverLODRange[SOLVERLODRANGE_INTERPOLATE_PROMOTE]);
-
+	uint strandIdx = _RenderStrandIndices[worldIdx.x];
+	DECLARE_STRAND(strandIdx);
+	
+	
 	_RootPositionPrev[strandIndex] = _RootPositionNext[strandIndex];
 	_RootPosition[strandIndex] = _RootPositionNext[strandIndex];
-
+	
 	_RootFramePrev[strandIndex] = _RootFrameNext[strandIndex];
 	_RootFrame[strandIndex] = _RootFrameNext[strandIndex];
 }
@@ -674,6 +695,8 @@ float4 BlendQuaternion(float4 q0, float4 q1, float t)
 float _SubstepFractionLo;
 float _SubstepFractionHi;
 
+// This kernel runs at the start of every physics step, but only over the set of simulated strands.
+// It smooths out (sub-steps) the positions of the roots to make the simulation more stable.
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KRootsSubstep(
 	uint3 groupIdx : SV_GroupID,
@@ -806,6 +829,7 @@ void KLODSelection(
 {
 	// Reset the strand index buffer.
 	_SolverStrandCount[0] = 0;
+	_RenderStrandCount[0] = 0;
 	
 	// select solver lod
 	float solverLODQuantity = 1.0;
@@ -932,16 +956,18 @@ void KLODSelection(
 	uint countRender				= CheckedCount(rangeRender);
 	uint countRenderAdd				= CheckedCount(rangeRenderAdd);
 
-	WriteIndirectDispatch(SOLVERLODDISPATCH_SOLVE,					ResolveDispatchParallelStrands(countSolve));
-	WriteIndirectDispatch(SOLVERLODDISPATCH_SOLVE_GROUP_PARTICLES,	ResolveDispatchParallelParticlesEachStrand(countSolve));
+	// WriteIndirectDispatch(SOLVERLODDISPATCH_SOLVE,					ResolveDispatchParallelStrands(countSolve));
+	// WriteIndirectDispatch(SOLVERLODDISPATCH_SOLVE_GROUP_PARTICLES,	ResolveDispatchParallelParticlesEachStrand(countSolve));
+	// WriteIndirectDispatch(SOLVERLODDISPATCH_TRANSFER,				ResolveDispatchParallelParticles(countSolve));
+	// WriteIndirectDispatch(SOLVERLODDISPATCH_TRANSFER_ALL,			ResolveDispatchParallelParticles(countSolve + countInterpolate));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_INTERPOLATE,			ResolveDispatchParallelStrands(countInterpolate));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_INTERPOLATE_ADD,		ResolveDispatchParallelStrands(countInterpolateAdd));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_INTERPOLATE_PROMOTE,	ResolveDispatchParallelStrands(countInterpolatePromote));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_STAGING,				ResolveDispatchParallelStrands(countRender));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_STAGING_ADD,			ResolveDispatchParallelStrands(countRenderAdd));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_ROOTS,					ResolveDispatchParallelStrands(countSolve + countInterpolate));
-	WriteIndirectDispatch(SOLVERLODDISPATCH_TRANSFER,				ResolveDispatchParallelParticles(countSolve));
-	WriteIndirectDispatch(SOLVERLODDISPATCH_TRANSFER_ALL,			ResolveDispatchParallelParticles(countSolve + countInterpolate));
+	
+	// Note: Deprecated paths: 
 	WriteIndirectDispatch(SOLVERLODDISPATCH_RASTER_POINTS,			ResolveDrawParallelParticles(countSolve, 1));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_RASTER_POINTS_ALL,		ResolveDrawParallelParticles(countSolve + countInterpolate, 1));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_RASTER_QUADS,			ResolveDrawParallelParticles(countSolve, 8));
@@ -974,6 +1000,8 @@ void KStrandLODClear(
 // 
 // This request is then bubbled up through the parent guides via InterlockedMax so that guides all have a request 
 // at least as high as their children.
+// 
+// This kernel also calculates the lods for rendering, which is separate to the solver LODs, but uses the same values.
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KStrandLODRequest(
 	uint3 groupIdx : SV_GroupID,
@@ -988,46 +1016,65 @@ void KStrandLODRequest(
 	DECLARE_STRAND(worldIdx.x);
 	
 	// We use the Root Position because Particle Position buffer is not yet available until after the solver runs.
-	float3 rootPos = _RootPosition[strandIndex];
+	float3 rootPos = _RootPosition[strandIndex].xyz;
 	
-	// Strand properties (world space)
-	float3 strandCenter = rootPos;
-	float strandLength = _RootScale[strandIndex].x * (_GroupMaxParticleInterval * (_StrandParticleCount - 1));
+	// The maximum length a strand could be
+	float strandLength = 1;//_RootScale[strandIndex].x * (_GroupMaxParticleInterval * (_StrandParticleCount - 1));
 
-	
 	// We currently LOD based on how far away each strand is from the camera (number of pixels the strand length is on screen).
 	// todo: We should probably LOD based on the size of the parent clusters. A strand can be lod'd until the cluster
 	// it is a part of reaches a certain size on screen (which can be our toplevel configuration). This may be slower though.
-	uint lod = 0;
+	float maxCoverage = 0;
 	for (uint f = 0; f < _LODFrustumCount; ++f)
 	{
 		LODFrustum lodFrustum = _LODFrustum[f];
-		float curveDepth = dot(lodFrustum.cameraForward, strandCenter - lodFrustum.cameraPosition);
-		float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, strandLength);
 		
-		// LODing is based on number of pixels on screen. 
-		// todo: We need to multiply by the LOD scaling parameters!
-		float clampedCoverage = clamp(curveCoverage, 20, 100);
-		lod = max(lod, (uint) round(Remap(20, 100, 0, _LODCount - 1, clampedCoverage)));
+		// Assume the strand could be anywhere in a sphere of its own length.
+		if (LODFrustumContainsSphere(_LODFrustum[f], rootPos, strandLength))
+		{
+			float curveDepth = dot(lodFrustum.cameraForward, rootPos - lodFrustum.cameraPosition);
+			float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, strandLength);
+			maxCoverage = max(maxCoverage, curveCoverage);
+		}
 	}
+	
+	float clampedCoverage = clamp(maxCoverage, 20, 100);
+	
+	// todo: We need to multiply by the LOD scaling parameters!
+	float solverLodValue = RangeRemap(20, 100, clampedCoverage) * _SolverLODScale + _SolverLODBias;
+	
+	// Round to nearest lod level for solver.
+	uint solverLod = (uint) round(RangeRemapFrom01(0, _LODCount - 1, solverLodValue));
 	
 	// Calculates the maximum LOD request for each strand. For each strand, it's the maximum lod level from itself
 	// and any strands that requested it as a guide in the previous phase. You can think of this as bubbling up the LOD request
 	// values through the strand cluster hieararchy, applying the max operator.
-	
-	// Propagate (Bubble Up) this request to my guides.
-	// We iterate through the available LOD levels to find which strands act as guides for *this* strand.
-	// _LODGuideIndex maps [LOD_Level][Strand_Index] -> Guide_Index.
 	for (uint i = 0; i < _LODCount; i++)
 	{
-		// Look up who my guide is at this specific LOD level
-		// (Note: Buffer layout assumed based on Interpolate kernel: [LOD * StrandCount + StrandIndex])
 		uint guideIndex = _LODGuideIndex[(i * _StrandCount) + strandIndex];
+		InterlockedMax(_SolverStrandLodRequests[guideIndex], solverLod);
+	}
 	
-		// 3. Atomic Max ensures thread safety. 
-		// Multiple children might try to update the same guide simultaneously. 
-		// This writes the MAX value of (CurrentGuideLOD, MyLOD) into the guide's slot.
-		InterlockedMax(_SolverStrandLodRequests[guideIndex], lod);
+	// Render LODing / culling:
+	// ========================
+	
+	// Cull strand if it resides in a non-zero mask cell. Used to hide strands in buildings.
+	// float2 tilemaskUV = (rootPos.xz - _StrandTileMaskSizeOffset.zw) / _StrandTileMaskSizeOffset.xy;
+	// if (_StrandTileMask.SampleLevel(sampler_StrandTileMask, tilemaskUV, 0).r != 0) {
+	// 	return;
+	// }
+	//
+	if (maxCoverage < .001) {
+		return;
+	}
+
+	uint renderIndex;
+	InterlockedAdd(_RenderStrandCount[0], 1, renderIndex);
+
+	// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
+	// to determine which strands to render.
+	if (renderIndex < _StrandCount) {
+		_RenderStrandIndices[renderIndex] = strandIndex;
 	}
 }
 
@@ -1115,6 +1162,18 @@ void KStrandLODFinish(
 	// The volume splat (transfer) kernels should only splat simulated strands.
 	WriteIndirectDispatch(SOLVERLODDISPATCH_TRANSFER,					ResolveDispatchParallelParticles(solverStrandCount));
 	WriteIndirectDispatch(SOLVERLODDISPATCH_TRANSFER_ALL,					ResolveDispatchParallelParticles(solverStrandCount));
+	
+	// The root substep kernel (KRootsSubstep) runs only on simulated strands.
+	WriteIndirectDispatch(SOLVERLODDISPATCH_ROOTS,					ResolveDispatchParallelStrands(solverStrandCount));
+
+	uint renderStrandCount = _RenderStrandCount[0];
+	// The interpolate & render kernels run for every strand that is rendered.
+	_SolverLODRange[SOLVERLODRANGE_RENDER].y = renderStrandCount;
+	WriteIndirectDispatch(SOLVERLODDISPATCH_INTERPOLATE,			ResolveDispatchParallelStrands(renderStrandCount));
+	WriteIndirectDispatch(SOLVERLODDISPATCH_INTERPOLATE_ADD,		ResolveDispatchParallelStrands(renderStrandCount));
+	WriteIndirectDispatch(SOLVERLODDISPATCH_INTERPOLATE_PROMOTE,	ResolveDispatchParallelStrands(renderStrandCount));
+	WriteIndirectDispatch(SOLVERLODDISPATCH_STAGING,				ResolveDispatchParallelStrands(renderStrandCount));
+	WriteIndirectDispatch(SOLVERLODDISPATCH_STAGING_ADD,			ResolveDispatchParallelStrands(0));
 
 }
 
@@ -1168,7 +1227,6 @@ void KLODSelectionPost(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	_SolverLODRange[SOLVERLODRANGE_RENDER].y = _RenderStrandCount[0];
 
 	uint countRender = _SolverLODRange[SOLVERLODRANGE_RENDER].y;
 	uint countRenderBatchSize = min(countRender, INSTANCING_BATCH_SIZE);
@@ -2188,12 +2246,12 @@ void StoreInterpolatedVelocity(int particleIndex, float3 velocity)
 #endif
 }
 
-void InterpolateStrandPosition(const uint index, const uint2 range, const LODIndices lodDesc)
+void InterpolateStrandPosition(const uint strandIdx, const LODIndices lodRange)
 {
-	DECLARE_STRAND_WITHIN(index, range);
-
-	const uint strandIndexLo = _LODGuideIndex[(lodDesc.lodIndexLo * _StrandCount) + strandIndex];
-	const uint strandIndexHi = _LODGuideIndex[(lodDesc.lodIndexHi * _StrandCount) + strandIndex];
+	DECLARE_STRAND(strandIdx);
+	
+	const uint strandIndexLo = _LODGuideIndex[(lodRange.lodIndexLo * _StrandCount) + strandIndex];
+	const uint strandIndexHi = _LODGuideIndex[(lodRange.lodIndexHi * _StrandCount) + strandIndex];
 
 	const uint strandParticleBeginLo = strandIndexLo * _StrandParticleOffset;
 	const uint strandParticleBeginHi = strandIndexHi * _StrandParticleOffset;
@@ -2209,6 +2267,8 @@ void InterpolateStrandPosition(const uint index, const uint2 range, const LODInd
 	const float3 rootPositionLo = _RootPosition[strandIndexLo].xyz;
 	const float3 rootPositionHi = _RootPosition[strandIndexHi].xyz;
 
+	// Calculates the rest position of the follower from packed rotations (FrameDelta16) rather than stored positions.
+	// This could save a lot of VRAM, but is much slower because of the reconstruction and quaternion math.
 #if 0// experimental
 	float4 frame = rootFrame;
 	float4 frameLo = rootFrameLo;
@@ -2222,7 +2282,7 @@ void InterpolateStrandPosition(const uint index, const uint2 range, const LODInd
 	float stepLo = GetParticleInterval(strandIndexLo);
 	float stepHi = GetParticleInterval(strandIndexHi);
 
-	if (lodDesc.lodBlendFrac == 0.0)
+	if (lodRange.lodBlendFrac == 0.0)
 	{
 		for (uint i = strandParticleBegin + strandParticleStride, iLo = strandParticleBeginLo + strandParticleStride; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride)
 		{
@@ -2253,7 +2313,7 @@ void InterpolateStrandPosition(const uint index, const uint2 range, const LODInd
 
 			float3 positionDeltaLo = strandContribLo * (_ParticlePosition[iLo].xyz - initialPositionLo);
 			float3 positionDeltaHi = strandContribHi * (_ParticlePosition[iHi].xyz - initialPositionHi);
-			float3 position = initialPosition + lerp(positionDeltaLo, positionDeltaHi, lodDesc.lodBlendFrac);
+			float3 position = initialPosition + lerp(positionDeltaLo, positionDeltaHi, lodRange.lodBlendFrac);
 
 			//TODO transition strand to interpolated to avoid pops
 			StoreInterpolatedPosition(i, position);
@@ -2262,7 +2322,7 @@ void InterpolateStrandPosition(const uint index, const uint2 range, const LODInd
 #else
 	StoreInterpolatedPosition(strandParticleBegin, rootPosition);
 
-	if (lodDesc.lodBlendFrac == 0.0)
+	if (lodRange.lodBlendFrac == 0.0)
 	{
 		for (uint i = strandParticleBegin + strandParticleStride, iLo = strandParticleBeginLo + strandParticleStride; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride)
 		{
@@ -2291,7 +2351,7 @@ void InterpolateStrandPosition(const uint index, const uint2 range, const LODInd
 
 			float3 positionDeltaLo = strandContribLo * (currentOffsetLo - initialOffsetLo);
 			float3 positionDeltaHi = strandContribHi * (currentOffsetHi - initialOffsetHi);
-			float3 position = rootPosition + initialOffset + lerp(positionDeltaLo, positionDeltaHi, lodDesc.lodBlendFrac);
+			float3 position = rootPosition + initialOffset + lerp(positionDeltaLo, positionDeltaHi, lodRange.lodBlendFrac);
 
 			//TODO transition strand to interpolated to avoid pops
 			StoreInterpolatedPosition(i, position);
@@ -2347,7 +2407,18 @@ void KInterpolate(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	InterpolateStrandPosition(worldIdx.x, _SolverLODRange[SOLVERLODRANGE_INTERPOLATE], _SolverLODStage[SOLVERLODSTAGE_PHYSICS]);
+	uint strandIdx = _RenderStrandIndices[worldIdx.x];
+	DECLARE_STRAND(strandIdx);
+	
+	uint lod = _SolverStrandLod[strandIndex];
+	LODIndices lodRange;
+	lodRange.lodBlendFrac = 0;
+	lodRange.lodIndexLo = lod;
+	lodRange.lodIndexHi = lod;
+	lodRange.lodValue = (float) lod / max(1.0, (float)(_LODCount - 1));
+	
+	// todo: Optimize this to get rid of the double math and use only one lod
+	InterpolateStrandPosition(strandIndex, lodRange);
 }
 
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
@@ -2361,7 +2432,7 @@ void KInterpolateAdd(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	InterpolateStrandPosition(worldIdx.x, _SolverLODRange[SOLVERLODRANGE_INTERPOLATE_ADD], _SolverLODStage[SOLVERLODSTAGE_PHYSICS_PREV]);
+	InterpolateStrandPosition(worldIdx.x, _SolverLODStage[SOLVERLODSTAGE_PHYSICS_PREV]);
 }
 
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
@@ -2393,10 +2464,6 @@ void KInterpolatePromote(
 // The use a of a byte buffer for staging vertices also allows compressing the final positions used to render. This can be
 // configured with _StagingVertexFormat. More compressed vertices result in lower memory bandwidth at the cost of precision.
 //
-// Lastly, additional frustum and coverage culling are done, before adding strands to _RenderStrandIndices, a big
-// array of which strands should be rendered in the final draw. Even though we calculate and store staging vertices
-// for each strand, we only render those in _RenderStrandIndices.
-//
 // A history of the _StagingVertex buffer is copied into the _StagingVertexPrev buffer, and is used to write motion vectors.
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KStaging(
@@ -2409,7 +2476,8 @@ void KStaging(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_STRAND_WITHIN(worldIdx.x, _SolverLODRange[SOLVERLODRANGE_RENDER]);
+	uint strandIdx = _RenderStrandIndices[worldIdx.x];
+	DECLARE_STRAND(strandIdx);
 
 	const LODBounds lodBounds = _Bounds[_GroupBoundsIndex];
 
@@ -2433,44 +2501,6 @@ void KStaging(
 	}
 
 	StoreStagingPosition(strandParticleEnd - strandParticleStride, p0, lodBounds);
-
-	// Determine visibility for this strand, and only queue it for rendering if it is visible.
-	LODBounds strandBounds;
-	strandBounds.center = (rootPos + p0) / 2.0;
-	strandBounds.radius = length(rootPos - p0) / 2.0;
-	strandBounds.extent = (p0 - rootPos) / 2.0;
-	strandBounds.reach = strandBounds.radius;
-
-	// Cull strand if it resides in a non-zero mask cell. Used to hide strands in buildings.
-	float2 tilemaskUV = (rootPos.xz - _StrandTileMaskSizeOffset.zw) / _StrandTileMaskSizeOffset.xy;
-	if (_StrandTileMask.SampleLevel(sampler_StrandTileMask, tilemaskUV, 0).r != 0) {
-		return;
-	}
-	
-	// Determine if the strand will have any coverage in any camera. If not, don't queue for rendering.
-	float maxCoverage = 0;
-	for (uint f = 0; f < _LODFrustumCount; ++f)
-	{
-		if (LODFrustumContains(_LODFrustum[f], strandBounds)) {
-			LODFrustum frustum = _LODFrustum[f];
-			float radius = (0.5 * _GroupMaxParticleDiameter) * _RootScale[strandIndex].y;
-			float coverage = CalculateLODCoverage(strandIndex, radius, rootPos,  frustum, _RenderLODScale, _RenderLODBias);
-			maxCoverage = max(coverage, maxCoverage);
-		}
-	}
-
-	if (maxCoverage < _RenderLODClipThreshold) {
-		return;
-	}
-
-	uint renderIndex;
-	InterlockedAdd(_RenderStrandCount[0], 1, renderIndex);
-
-	// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
-	// to determine which strands to render.
-	if (renderIndex < _StrandCount) {
-		_RenderStrandIndices[renderIndex] = strandIndex;
-	}
 }
 
 struct CatmullRomParticle
@@ -2512,7 +2542,8 @@ void KStagingSubdivision(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_STRAND_WITHIN(worldIdx.x, _SolverLODRange[SOLVERLODRANGE_RENDER]);
+	uint strandIdx = _RenderStrandIndices[worldIdx.x];
+	DECLARE_STRAND(strandIdx);
 
 	const LODBounds lodBounds = _Bounds[_GroupBoundsIndex];
 

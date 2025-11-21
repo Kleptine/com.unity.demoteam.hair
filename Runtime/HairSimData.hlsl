@@ -69,6 +69,10 @@ HAIRSIM_SOLVERLOD<uint> _SolverStrandLod;				// x: Final LOD level for each stra
 HAIRSIM_SOLVERLOD<uint> _SolverStrandIndices;			// x: The strand index to simulate. The sparse set of strands simulated this frame.
 HAIRSIM_SOLVERLOD<uint> _SolverStrandCount;				// size=1, the count of strands to simulate from the _SolverStrandIndices buffer.
 
+// The strand LOD system also calculates which strands to render this frame.
+HAIRSIM_SOLVERLOD<uint> _RenderStrandIndices;			// x: the strand index to render, mapped by render strand id.
+HAIRSIM_SOLVERLOD<uint> _RenderStrandCount;				// size=1, the count of strands to render from the _RenderStrandIndices buffer.
+
 HAIRSIM_SOLVERINIT<float4> _InitialParticleOffset;		// xyz: initial particle offset from strand root, w: initial local accumulated weight (gather)
 HAIRSIM_SOLVERINIT<float4> _InitialParticleFrameDelta;	// quat(xyz,w): initial particle material frame delta
 HAIRSIM_SOLVERINIT<uint2> _InitialParticleFrameDelta16;	// xy: compressed initial particle material frame delta
@@ -90,8 +94,6 @@ StructuredBuffer<float> _LODGuideReach;					// x: lod index * strand count + str
 
 HAIRSIM_RENDERDATA _StagingVertex;						// xyz: position (uncompressed) || xy: position (compressed)
 HAIRSIM_RENDERDATA _StagingVertexPrev;					// xyz: ...
-HAIRSIM_RENDER<uint> _RenderStrandIndices;				// x: the strand index to render, mapped by render strand id.
-HAIRSIM_RENDER<uint> _RenderStrandCount;				// size=1, the count of strands to render from the _RenderStrandIndices buffer.
 
 Texture2D _StrandTileMask;								// culls strands that are in tiles with non-zero values
 SamplerState sampler_StrandTileMask;					// sampler state for _StrandTileMask

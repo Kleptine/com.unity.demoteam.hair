@@ -74,6 +74,7 @@ namespace Unity.DemoTeam.Hair
 			public struct SolverTextures<T>
 			{
 				//public T _LODIndexLUT;				// TODO
+				public T _StrandTileMask;
 			}
 
 			public struct SolverKeywords
@@ -111,6 +112,10 @@ namespace Unity.DemoTeam.Hair
 			public bool manualBounds;
 			public Vector3 manualBoundsMin;
 			public Vector3 manualBoundsMax;
+			
+			// Goes alongside the _StrandTileMask texture
+			public static int _StrandTileMaskSizeOffsetId = Shader.PropertyToID("_StrandTileMaskSizeOffset");
+			public Vector4 _StrandTileMaskSizeOffset;
 
 			public NativeArray<float> lodThreshold;		// lod index -> relative guide count [0..1]
 		}

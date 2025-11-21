@@ -48,6 +48,19 @@ bool LODFrustumContains(const LODFrustum lodFrustum, const LODBounds lodBounds)
 	);
 }
 
+bool LODFrustumContainsSphere(const LODFrustum lodFrustum, float3 center, float radius)
+{
+	// We check if the distance is greater than -radius (allowing the center to be slightly behind the plane)
+	return (
+		dot(center, lodFrustum.plane0.xyz) > -lodFrustum.plane0.w - radius &&
+		dot(center, lodFrustum.plane1.xyz) > -lodFrustum.plane1.w - radius &&
+		dot(center, lodFrustum.plane2.xyz) > -lodFrustum.plane2.w - radius &&
+		dot(center, lodFrustum.plane3.xyz) > -lodFrustum.plane3.w - radius &&
+		dot(center, lodFrustum.plane4.xyz) > -lodFrustum.plane4.w - radius &&
+		dot(center, lodFrustum.plane5.xyz) > -lodFrustum.plane5.w - radius
+	);
+}
+
 // Calculates the projected number of pixels an object of height "sampleSpan" will cover at depth "sampleDepth".
 float LODFrustumCoverage(const LODFrustum lodFrustum, const float sampleDepth, const float sampleSpan)
 {
@@ -121,7 +134,9 @@ float ResolveLODQuantity(const float sampleCoverage, const float lodCeiling, con
 	}
 }
 
-LODIndices ResolveLODIndices(const float lodValue)
+// Finds the two LOD levels and fraction between them where this density of strands is rendered in the hair asset.
+// We use this to pick LOD levels based on screen coverage of strands.
+LODIndices ResolveLODIndices(const float density)
 {
 	//TODO optimize
 	//TODO e.g. could replace with lut, floor(sample(_LODIndicesByLODValue, lodValue))
@@ -133,7 +148,7 @@ LODIndices ResolveLODIndices(const float lodValue)
 		{
 			while (lodDesc.lodIndexHi > 0)
 			{
-				if (lodValue > _LODGuideCount[lodDesc.lodIndexHi - 1] / (float)_StrandCount)
+				if (density > _LODGuideCount[lodDesc.lodIndexHi - 1] / (float)_StrandCount)
 				{
 					break;
 				}
@@ -151,7 +166,7 @@ LODIndices ResolveLODIndices(const float lodValue)
 				float lodValueLo = _LODGuideCount[lodDesc.lodIndexLo] / (float)_StrandCount;
 				float lodValueHi = _LODGuideCount[lodDesc.lodIndexHi] / (float)_StrandCount;
 			
-				lodDesc.lodBlendFrac = saturate((lodValue - lodValueLo) / (lodValueHi - lodValueLo));
+				lodDesc.lodBlendFrac = saturate((density - lodValueLo) / (lodValueHi - lodValueLo));
 			}
 		}
 		else
@@ -159,7 +174,7 @@ LODIndices ResolveLODIndices(const float lodValue)
 			lodDesc.lodBlendFrac = 0.0f;
 		}
 		
-		lodDesc.lodValue = lodValue;
+		lodDesc.lodValue = density;
 	}
 
 	return lodDesc;

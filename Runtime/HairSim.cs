@@ -127,11 +127,11 @@ namespace Unity.DemoTeam.Hair
 			public static int KInitializePostVolume;
 			public static int KLODSelectionInit;
 			public static int KLODSelection;
+			public static int KLODSelectionPost;
 			public static int KStrandLODClear;
 			public static int KStrandLODRequest;
 			public static int KStrandLODSelection;
 			public static int KStrandLODFinish;
-			public static int KLODSelectionPost;
 			public static int KSolveConstraints_GaussSeidelReference;
 			public static int KSolveConstraints_GaussSeidel;
 			public static int KSolveConstraints_Jacobi_16;
@@ -902,6 +902,10 @@ namespace Unity.DemoTeam.Hair
 		public static void PushSolverLOD(CommandBuffer cmd, ref SolverData solverData, in SettingsPhysics settingsPhysics, in SettingsRendering settingsRendering, in VolumeData volumeData, int stepCount)
 		{
 			ref var solverConstants = ref solverData.constants;
+			
+			// push tile mask
+			cmd.SetComputeTextureParam(s_solverCS, SolverKernels.KStrandLODRequest, SolverData.s_textureIDs._StrandTileMask, solverData.textures._StrandTileMask != null ? solverData.textures._StrandTileMask : Texture2D.blackTexture);
+			cmd.SetComputeVectorParam(s_solverCS, SolverData._StrandTileMaskSizeOffsetId, solverData._StrandTileMaskSizeOffset);
 
 			// derive constants
 			solverConstants._SolverLODMethod = ((uint)settingsPhysics.kLODSelection & 0xffffu) | (stepCount > 0 ? 0x10000u : 0x00000u);
@@ -995,8 +999,8 @@ namespace Unity.DemoTeam.Hair
 				return ret;
 			}
 
-			BindSolverData(cmd, s_solverCS, SolverKernels.KInterpolateAdd, WithCurrentRoots(solverData));
-			cmd.DispatchCompute(s_solverCS, SolverKernels.KInterpolateAdd, solverData.buffers._SolverLODDispatch, GetSolverLODDispatchOffset(SolverLODDispatch.InterpolateAdd));
+			// BindSolverData(cmd, s_solverCS, SolverKernels.KInterpolateAdd, WithCurrentRoots(solverData));
+			// cmd.DispatchCompute(s_solverCS, SolverKernels.KInterpolateAdd, solverData.buffers._SolverLODDispatch, GetSolverLODDispatchOffset(SolverLODDispatch.InterpolateAdd));
 		}
 
 		public static void PushSolverStepBegin(CommandBuffer cmd, ref SolverData solverData, in SettingsPhysics settingsPhysics, float deltaTime)
@@ -1094,11 +1098,11 @@ namespace Unity.DemoTeam.Hair
 			PushConstantBufferData(cmd, solverData.buffers.SolverCBuffer, solverConstants);
 
 			// promote interpolated -> simulated
-			BindSolverData(cmd, s_solverCS, SolverKernels.KRootsHistoryAdd, solverData);
-			cmd.DispatchCompute(s_solverCS, SolverKernels.KRootsHistoryAdd, solverData.buffers._SolverLODDispatch, GetSolverLODDispatchOffset(SolverLODDispatch.InterpolatePromote));
+			// BindSolverData(cmd, s_solverCS, SolverKernels.KRootsHistoryAdd, solverData);
+			// cmd.DispatchCompute(s_solverCS, SolverKernels.KRootsHistoryAdd, solverData.buffers._SolverLODDispatch, GetSolverLODDispatchOffset(SolverLODDispatch.InterpolatePromote));
 
-			BindSolverData(cmd, s_solverCS, SolverKernels.KInterpolatePromote, solverData);
-			cmd.DispatchCompute(s_solverCS, SolverKernels.KInterpolatePromote, solverData.buffers._SolverLODDispatch, GetSolverLODDispatchOffset(SolverLODDispatch.InterpolatePromote));
+			// BindSolverData(cmd, s_solverCS, SolverKernels.KInterpolatePromote, solverData);
+			// cmd.DispatchCompute(s_solverCS, SolverKernels.KInterpolatePromote, solverData.buffers._SolverLODDispatch, GetSolverLODDispatchOffset(SolverLODDispatch.InterpolatePromote));
 		}
 
 		public static void PushSolverStep(CommandBuffer cmd, ref SolverData solverData, in SettingsPhysics settingsPhysics, in VolumeData volumeData, float stepFracLo, float stepFracHi, bool stepFinal)
@@ -1241,7 +1245,7 @@ namespace Unity.DemoTeam.Hair
 			}
 		}
 
-		public static void PushSolverStaging(CommandBuffer cmd, ref SolverData solverData, in SettingsGeometry settingsGeometry, in SettingsRendering settingsRendering, in VolumeData volumeData, Texture2D strandTileMask = null, Vector4? strandTileMaskSizeOffset = null)
+		public static void PushSolverStaging(CommandBuffer cmd, ref SolverData solverData, in SettingsGeometry settingsGeometry, in SettingsRendering settingsRendering, in VolumeData volumeData)
 		{
 			ref var solverBuffers = ref solverData.buffers;
 			ref var solverConstants = ref solverData.constants;
@@ -1298,10 +1302,6 @@ namespace Unity.DemoTeam.Hair
 
 			// update cbuffer
 			PushConstantBufferData(cmd, solverData.buffers.SolverCBuffer, solverConstants);
-			
-			// push tile mask
-			cmd.SetComputeTextureParam(s_solverCS, SolverKernels.KStaging, Shader.PropertyToID("_StrandTileMask"), strandTileMask != null ? strandTileMask : Texture2D.blackTexture);;
-			cmd.SetComputeVectorParam(s_solverCS, Shader.PropertyToID("_StrandTileMaskSizeOffset"), strandTileMaskSizeOffset ?? new Vector4(1,1,0,0));
 
 			// update staging
 			int stagingKernel = (solverConstants._StagingSubdivision == 0)

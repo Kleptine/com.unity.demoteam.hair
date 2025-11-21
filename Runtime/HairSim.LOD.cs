@@ -65,10 +65,10 @@ namespace Unity.DemoTeam.Hair
 		[GenerateHLSL(needAccessors = false)]
 		public struct LODIndices
 		{
-			public uint lodIndexLo;
-			public uint lodIndexHi;
-			public float lodBlendFrac;
-			public float lodValue;
+			public uint lodIndexLo; // The lower LOD in the blend.
+			public uint lodIndexHi; // The upper (more detailed) LOD in the blend.
+			public float lodBlendFrac; // The blend fraction between the lower and upper LODs.
+			public float lodValue; // The absolute lod float value, between 0 (lowest) and 1 (highest).
 		};
 
 		public static NativeList<LODFrustum> AcquireLODFrustums(CameraType cameraType, Allocator allocator)
