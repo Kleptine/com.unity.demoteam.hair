@@ -33,12 +33,6 @@
 #pragma kernel KStagingHistory							THREAD_GROUP_SIZE=64	F_STAGING
 #pragma kernel KStagingHistoryAdd						THREAD_GROUP_SIZE=64	F_STAGING
 
-// #define F_SOLVE 1
-#define F_LOD 1
-#define F_INTERPOLATE 1
-#define F_STAGING 1
-
-
 //----------
 // includes
 
