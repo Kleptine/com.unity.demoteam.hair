@@ -486,8 +486,8 @@ void KInitialize(
 	float4 localRootFrameInv = QInverse(localRootFrame);
 
 	// calc initial particle offsets from strand root + set up initial world pose
-	float4 worldRootFrame = GetRootFrame(strandIndex);
-	float3 worldRootPos = GetRootPosition(strandIndex);
+	float4 worldRootFrame = _RootFrame[strandIndex];
+	float3 worldRootPos = _RootPositionNext[strandIndex];
 
 	for (uint i = strandParticleBegin; i != strandParticleEnd; i += strandParticleStride)
 	{
@@ -708,7 +708,8 @@ void KRootsSubstep(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	DECLARE_STRAND(worldIdx.x);
+	uint strandIdx = _SolverStrandIndices[worldIdx.x];
+	DECLARE_STRAND(strandIdx);
 
 	float t = _SubstepFractionHi;
 
@@ -1016,7 +1017,7 @@ void KStrandLODRequest(
 	DECLARE_STRAND(worldIdx.x);
 	
 	// We use the Root Position because Particle Position buffer is not yet available until after the solver runs.
-	float3 rootPos = _RootPosition[strandIndex].xyz;
+	float3 rootPos = _RootPositionNext[strandIndex].xyz;
 	
 	// The maximum length a strand could be
 	float maxStrandLength = _RootScale[strandIndex].x * (_GroupMaxParticleInterval * (_StrandParticleCount - 1));
@@ -2258,13 +2259,13 @@ void InterpolateStrandPosition(const uint strandIdx, const LODIndices lodRange)
 	const float strandContribLo = _RootScale[strandIndex].x / _RootScale[strandIndexLo].x;
 	const float strandContribHi = _RootScale[strandIndex].x / _RootScale[strandIndexHi].x;
 
-	const float4 rootFrame = _RootFrame[strandIndex];
-	const float4 rootFrameLo = _RootFrame[strandIndexLo];
-	const float4 rootFrameHi = _RootFrame[strandIndexHi];
+	const float4 rootFrame = _RootFrameNext[strandIndex];
+	const float4 rootFrameLo = _RootFrameNext[strandIndexLo];
+	const float4 rootFrameHi = _RootFrameNext[strandIndexHi];
 
-	const float3 rootPosition = _RootPosition[strandIndex].xyz;
-	const float3 rootPositionLo = _RootPosition[strandIndexLo].xyz;
-	const float3 rootPositionHi = _RootPosition[strandIndexHi].xyz;
+	const float3 rootPosition = _RootPositionNext[strandIndex].xyz;
+	const float3 rootPositionLo = _RootPositionNext[strandIndexLo].xyz;
+	const float3 rootPositionHi = _RootPositionNext[strandIndexHi].xyz;
 
 	// Calculates the rest position of the follower from packed rotations (FrameDelta16) rather than stored positions.
 	// This could save a lot of VRAM, but is much slower because of the reconstruction and quaternion math.
@@ -2480,7 +2481,7 @@ void KStaging(
 
 	const LODBounds lodBounds = _Bounds[_GroupBoundsIndex];
 
-	float4 rootFrame = GetRootFrame(strandIndex);
+	float4 rootFrame = _RootFrameNext[strandIndex];
 	float3 rootDir = QMul(rootFrame, float3(0, 1, 0));
 
 	float3 p0 = _ParticlePosition[strandParticleBegin].xyz;
@@ -2546,7 +2547,7 @@ void KStagingSubdivision(
 
 	const LODBounds lodBounds = _Bounds[_GroupBoundsIndex];
 
-	float4 rootFrame = GetRootFrame(strandIndex);
+	float4 rootFrame = _RootFrameNext[strandIndex];
 	float3 rootVec = GetParticleInterval(strandIndex) * QMul(rootFrame, float3(0, 1, 0));
 
 	float3 p0 = _ParticlePosition[strandParticleBegin].xyz;

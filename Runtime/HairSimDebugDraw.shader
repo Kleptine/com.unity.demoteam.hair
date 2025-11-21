@@ -117,7 +117,7 @@
 		const uint strandParticleBegin = strandIndex * _StrandParticleOffset;
 		const uint strandParticleStride = _StrandParticleStride;
 
-		float3 worldPos = _RootPositionNext[strandIndex].xyz;
+		float3 worldPos = _RootPosition[strandIndex].xyz;
 
 		float4 rootFrame = _RootFrame[strandIndex];
 		float3 rootFrameAxis = float3(
@@ -258,8 +258,8 @@
 		}
 
 		// 2. Get Positions
-		float3 childPos = _RootPosition[strandIndex].xyz;
-		float3 guidePos = _RootPosition[guideIndex].xyz;
+		float3 childPos = _RootPositionNext[strandIndex].xyz;
+		float3 guidePos = _RootPositionNext[guideIndex].xyz;
 
 		// 3. Calculate Vertex Position using Helper
 		float3 finalPos;
