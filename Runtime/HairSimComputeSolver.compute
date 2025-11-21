@@ -1019,7 +1019,7 @@ void KStrandLODRequest(
 	float3 rootPos = _RootPosition[strandIndex].xyz;
 	
 	// The maximum length a strand could be
-	float strandLength = 1;//_RootScale[strandIndex].x * (_GroupMaxParticleInterval * (_StrandParticleCount - 1));
+	float maxStrandLength = _RootScale[strandIndex].x * (_GroupMaxParticleInterval * (_StrandParticleCount - 1));
 
 	// We currently LOD based on how far away each strand is from the camera (number of pixels the strand length is on screen).
 	// todo: We should probably LOD based on the size of the parent clusters. A strand can be lod'd until the cluster
@@ -1030,10 +1030,10 @@ void KStrandLODRequest(
 		LODFrustum lodFrustum = _LODFrustum[f];
 		
 		// Assume the strand could be anywhere in a sphere of its own length.
-		if (LODFrustumContainsSphere(_LODFrustum[f], rootPos, strandLength))
+		if (LODFrustumContainsSphere(_LODFrustum[f], rootPos, maxStrandLength))
 		{
 			float curveDepth = dot(lodFrustum.cameraForward, rootPos - lodFrustum.cameraPosition);
-			float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, strandLength);
+			float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, 1); // currently calculate coverage assuming span of 1 pixel at 1m depth.
 			maxCoverage = max(maxCoverage, curveCoverage);
 		}
 	}
@@ -1064,17 +1064,16 @@ void KStrandLODRequest(
 	// 	return;
 	// }
 	//
-	if (maxCoverage < .001) {
-		return;
-	}
+	if (maxCoverage > .001)
+	{
+		uint renderIndex;
+		InterlockedAdd(_RenderStrandCount[0], 1, renderIndex);
 
-	uint renderIndex;
-	InterlockedAdd(_RenderStrandCount[0], 1, renderIndex);
-
-	// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
-	// to determine which strands to render.
-	if (renderIndex < _StrandCount) {
-		_RenderStrandIndices[renderIndex] = strandIndex;
+		// Write the set of strand indices which will actually be rendered. The vertex shader looks at this buffer
+		// to determine which strands to render.
+		if (renderIndex < _StrandCount) {
+			_RenderStrandIndices[renderIndex] = strandIndex;
+		}
 	}
 }
 
