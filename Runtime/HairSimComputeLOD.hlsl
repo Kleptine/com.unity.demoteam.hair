@@ -128,7 +128,7 @@ float ResolveLODQuantity(const float sampleCoverage, const float lodCeiling, con
 	//
 	// float curveLod = saturate(curveCoverage) * (1.0 + min(0.0, lodBias)) + max(0.0, lodBias));   // lod in [0..1]
 
-	float lodValue = saturate(saturate(sampleCoverage * lodScale) + lodBias);
+	float lodValue = saturate(sampleCoverage * lodScale + lodBias);
 	{
 		return min(lodValue, lodCeiling);
 	}
