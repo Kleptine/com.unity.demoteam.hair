@@ -1193,6 +1193,7 @@ void KStrandLODRequest(
 	
 	// The maximum length a strand could be
 	float maxStrandLength = _RootScale[strandIndex].x * (_GroupMaxParticleInterval * (_StrandParticleCount - 1));
+	float diameter = _GroupMaxParticleDiameter * _RootScale[strandIndex].y;
 
 	// We currently LOD based on how far away each strand is from the camera (number of pixels the strand length is on screen).
 	// todo: We should probably LOD based on the size of the parent clusters. A strand can be lod'd until the cluster
@@ -1206,10 +1207,11 @@ void KStrandLODRequest(
 		if (LODFrustumContainsSphere(_LODFrustum[f], rootPos, maxStrandLength))
 		{
 			float curveDepth = dot(lodFrustum.cameraForward, rootPos - lodFrustum.cameraPosition);
-			float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, 1); // currently calculate coverage assuming span of 1 pixel at 1m depth.
+			float curveCoverage = LODFrustumCoverage(lodFrustum, curveDepth, diameter); // currently calculate coverage based on width of strand
 			maxCoverage = max(maxCoverage, curveCoverage);
 		}
 	}
+	
 	
 	float clampedCoverage = clamp(maxCoverage, 20, 100);
 	
@@ -1232,12 +1234,18 @@ void KStrandLODRequest(
 	// ========================
 	
 	// Cull strand if it resides in a non-zero mask cell. Used to hide strands in buildings.
-	// float2 tilemaskUV = (rootPos.xz - _StrandTileMaskSizeOffset.zw) / _StrandTileMaskSizeOffset.xy;
-	// if (_StrandTileMask.SampleLevel(sampler_StrandTileMask, tilemaskUV, 0).r != 0) {
-	// 	return;
-	// }
+	float2 tilemaskUV = (rootPos.xz - _StrandTileMaskSizeOffset.zw) / _StrandTileMaskSizeOffset.xy;
+	if (_StrandTileMask.SampleLevel(sampler_StrandTileMask, tilemaskUV, 0).r != 0) {
+		return;
+	}
+
+	// The density of strands (0..1) we are targeting. A measure of how many stands / meter out of the maximum.
+	float targetDensity = ResolveLODQuantity(maxCoverage, _RenderLODCeiling, _RenderLODScale, _RenderLODBias);
 	
-	if (maxCoverage > .001)
+	LODIndices lodDesc = ResolveLODIndices(targetDensity);
+	uint renderGuide = _LODGuideIndex[(lodDesc.lodIndexHi * _StrandCount) + strandIndex];
+	
+	if (renderGuide == strandIndex && maxCoverage > .001)
 	{
 		uint renderIndex;
 		InterlockedAdd(_RenderStrandCount[0], 1, renderIndex);
