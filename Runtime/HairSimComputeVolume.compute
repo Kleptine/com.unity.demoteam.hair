@@ -185,9 +185,7 @@ void KVolumeSplat(
 	// Although the names may be a little off.
 	uint strandIdx = worldIdx.x / _StrandParticleCount;
 	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
-	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
-	
-	DECLARE_SPLAT_PARTICLE(particleIdx);
+	uint particleIndex = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand * _StrandParticleStride;
 
 	const float3 p = _ParticlePosition[particleIndex].xyz;
 	const float3 v = _ParticleVelocity[particleIndex].xyz;
@@ -236,8 +234,7 @@ void KVolumeSplatDensity(
 {
 	uint strandIdx = worldIdx.x / _StrandParticleCount;
 	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
-	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
-	DECLARE_SPLAT_PARTICLE(particleIdx);
+	uint particleIndex = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand * _StrandParticleStride;
 
 	const float3 p = _ParticlePosition[particleIndex].xyz;
 	const float3 v = _ParticleVelocity[particleIndex].xyz;
@@ -274,8 +271,7 @@ void KVolumeSplatVelocityX(
 {
 	uint strandIdx = worldIdx.x / _StrandParticleCount;
 	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
-	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
-	DECLARE_SPLAT_PARTICLE(particleIdx);
+	uint particleIndex = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand * _StrandParticleStride;
 
 	const float3 p = _ParticlePosition[particleIndex].xyz;
 	const float3 v = _ParticleVelocity[particleIndex].xyz;
@@ -304,8 +300,7 @@ void KVolumeSplatVelocityY(
 {
 	uint strandIdx = worldIdx.x / _StrandParticleCount;
 	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
-	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
-	DECLARE_SPLAT_PARTICLE(particleIdx);
+	uint particleIndex = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand * _StrandParticleStride;
 
 	const float3 p = _ParticlePosition[particleIndex].xyz;
 	const float3 v = _ParticleVelocity[particleIndex].xyz;
@@ -334,8 +329,7 @@ void KVolumeSplatVelocityZ(
 {
 	uint strandIdx = worldIdx.x / _StrandParticleCount;
 	uint particleIndexInStrand = worldIdx.x % _StrandParticleCount; 
-	uint particleIdx = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand;
-	DECLARE_SPLAT_PARTICLE(particleIdx);
+	uint particleIndex = _SolverStrandIndices[strandIdx] * _StrandParticleOffset + particleIndexInStrand * _StrandParticleStride;
 
 	const float3 p = _ParticlePosition[particleIndex].xyz;
 	const float3 v = _ParticleVelocity[particleIndex].xyz;
