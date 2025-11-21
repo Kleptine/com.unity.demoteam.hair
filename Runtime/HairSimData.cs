@@ -42,6 +42,7 @@ namespace Unity.DemoTeam.Hair
 				public T _SolverLODTopology;			// x[5]: dispatch args draw indexed
 				public T _SolverStrandLodRequests;		// x: LOD level each individual strand requests based on coverage / etc. 255=culled
 				public T _SolverStrandLod;				// x: Final LOD level for each strand after cluster merging.
+				public T _SolverStrandLodPrev;			// x: Previous render frame's solver lod levels.
 				public T _SolverStrandIndices;			// x: The strand index to simulate. The sparse set of strands simulated this frame.
 				public T _SolverStrandCount;			// size=1, the count of strands to simulate from the _SolverStrandCount buffer.
 
@@ -296,8 +297,8 @@ namespace Unity.DemoTeam.Hair
 			Solve					= 0,	// thread group is 64 strands
 			SolveGroupParticles		= 1,	// thread group is 16|32|64|128 particles (one group = one strand)
 			Interpolate				= 2,	// thread group is 64 strands
-			InterpolateAdd			= 3,	// thread group is 64 strands
-			InterpolatePromote		= 4,	// thread group is 64 strands
+			[Obsolete] InterpolateAdd			= 3,	// thread group is 64 strands  (deprecated!)
+			[Obsolete] InterpolatePromote		= 4,	// thread group is 64 strands  (deprecated!)
 			Staging					= 5,	// thread group is 64 strands
 			StagingAdd				= 6,	// thread group is 64 strands
 			Roots					= 7,	// thread group is 64 strands

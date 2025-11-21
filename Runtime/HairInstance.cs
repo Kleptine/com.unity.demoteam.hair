@@ -844,7 +844,7 @@ namespace Unity.DemoTeam.Hair
 
 					for (int i = 0; i != solverData.Length; i++)
 					{
-						HairSim.PushSolverStepEnd(cmd, solverData[i], volumeData);
+						HairSim.PushSolverStepEnd(cmd, ref solverData[i], volumeData);
 					}
 				}
 			}

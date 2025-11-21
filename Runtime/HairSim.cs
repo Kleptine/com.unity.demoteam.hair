@@ -132,6 +132,7 @@ namespace Unity.DemoTeam.Hair
 			public static int KStrandLODRequest;
 			public static int KStrandLODSelection;
 			public static int KStrandLODFinish;
+			public static int KSolverBackfill;
 			public static int KSolveConstraints_GaussSeidelReference;
 			public static int KSolveConstraints_GaussSeidel;
 			public static int KSolveConstraints_Jacobi_16;
@@ -139,7 +140,6 @@ namespace Unity.DemoTeam.Hair
 			public static int KSolveConstraints_Jacobi_64;
 			public static int KSolveConstraints_Jacobi_128;
 			public static int KInterpolate;
-			public static int KInterpolateAdd;
 			public static int KInterpolatePromote;
 			public static int KStaging;
 			public static int KStagingSubdivision;
@@ -294,6 +294,7 @@ namespace Unity.DemoTeam.Hair
 				changed |= CreateBuffer(ref solverBuffers._SolverLODTopology, "SolverLODTopology", (int)SolverLODTopology.__COUNT * 5, sizeof(uint), ComputeBufferType.IndirectArguments);
 				changed |= CreateBuffer(ref solverBuffers._SolverStrandLodRequests, "SolverStrandLodRequests", strandCount, sizeof(uint));
 				changed |= CreateBuffer(ref solverBuffers._SolverStrandLod, "SolverStrandLod", strandCount, sizeof(uint));
+				changed |= CreateBuffer(ref solverBuffers._SolverStrandLodPrev, "SolverStrandLodPrev", strandCount, sizeof(uint));
 				changed |= CreateBuffer(ref solverBuffers._SolverStrandIndices, "SolverStrandIndices", strandCount, sizeof(uint));
 				changed |= CreateBuffer(ref solverBuffers._SolverStrandCount, "SolverStrandCount", 1, sizeof(uint));
 
@@ -441,6 +442,7 @@ namespace Unity.DemoTeam.Hair
 			ReleaseBuffer(ref solverBuffers._SolverLODTopology);
 			ReleaseBuffer(ref solverBuffers._SolverStrandLodRequests);
 			ReleaseBuffer(ref solverBuffers._SolverStrandLod);
+			ReleaseBuffer(ref solverBuffers._SolverStrandLodPrev);
 			ReleaseBuffer(ref solverBuffers._SolverStrandIndices);
 			ReleaseBuffer(ref solverBuffers._SolverStrandCount);
 
@@ -585,6 +587,7 @@ namespace Unity.DemoTeam.Hair
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverLODTopology, solverBuffers._SolverLODTopology);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandLodRequests, solverBuffers._SolverStrandLodRequests);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandLod, solverBuffers._SolverStrandLod);
+			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandLodPrev, solverBuffers._SolverStrandLodPrev);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandIndices, solverBuffers._SolverStrandIndices);
 			target.BindComputeBuffer(SolverData.s_bufferIDs._SolverStrandCount, solverBuffers._SolverStrandCount);
 
@@ -765,8 +768,8 @@ namespace Unity.DemoTeam.Hair
 			// conditionally advance roots
 			if (stepCount > 0)
 			{
-				CoreUtils.Swap(ref solverBuffers._RootPositionPrev, ref solverBuffers._RootPosition);
-				CoreUtils.Swap(ref solverBuffers._RootFramePrev, ref solverBuffers._RootFrame);
+				CoreUtils.Swap(ref solverBuffers._RootPositionPrev, ref solverBuffers._RootPositionNext);
+				CoreUtils.Swap(ref solverBuffers._RootFramePrev, ref solverBuffers._RootFrameNext);
 			}
 
 			using (new ProfilingScope(cmd, MarkersGPU.Roots))
@@ -998,9 +1001,6 @@ namespace Unity.DemoTeam.Hair
 				}
 				return ret;
 			}
-
-			// BindSolverData(cmd, s_solverCS, SolverKernels.KInterpolateAdd, WithCurrentRoots(solverData));
-			// cmd.DispatchCompute(s_solverCS, SolverKernels.KInterpolateAdd, solverData.buffers._SolverLODDispatch, GetSolverLODDispatchOffset(SolverLODDispatch.InterpolateAdd));
 		}
 
 		public static void PushSolverStepBegin(CommandBuffer cmd, ref SolverData solverData, in SettingsPhysics settingsPhysics, float deltaTime)
@@ -1097,7 +1097,10 @@ namespace Unity.DemoTeam.Hair
 			// update cbuffer
 			PushConstantBufferData(cmd, solverData.buffers.SolverCBuffer, solverConstants);
 
-			// promote interpolated -> simulated
+			// backfill solver root data for newly simulated strands
+			BindSolverData(cmd, s_solverCS, SolverKernels.KSolverBackfill, solverData);
+			cmd.DispatchCompute(s_solverCS, SolverKernels.KSolverBackfill, solverData.buffers._SolverLODDispatch, GetSolverLODDispatchOffset(SolverLODDispatch.Solve));
+			
 			// BindSolverData(cmd, s_solverCS, SolverKernels.KRootsHistoryAdd, solverData);
 			// cmd.DispatchCompute(s_solverCS, SolverKernels.KRootsHistoryAdd, solverData.buffers._SolverLODDispatch, GetSolverLODDispatchOffset(SolverLODDispatch.InterpolatePromote));
 
@@ -1233,8 +1236,11 @@ namespace Unity.DemoTeam.Hair
 			}
 		}
 
-		public static void PushSolverStepEnd(CommandBuffer cmd, in SolverData solverData, in VolumeData volumeData)
+		public static void PushSolverStepEnd(CommandBuffer cmd, ref SolverData solverData, in VolumeData volumeData)
 		{
+			// Move old values to the previous buffer.
+			CoreUtils.Swap(ref solverData.buffers._SolverStrandLodPrev, ref solverData.buffers._SolverStrandLod);
+			
 			if (volumeData.keywords.VOLUME_SPLAT_CLUSTERS)
 			{
 				using (new ProfilingScope(cmd, MarkersGPU.Solver_Interpolate))

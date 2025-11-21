@@ -66,6 +66,7 @@ HAIRSIM_SOLVERLODX<uint> _SolverLODTopology;			// x[5]: dispatch args draw index
 // The strand LOD system runs on all strands, and outputs a list of strands to simulate this frame.
 HAIRSIM_SOLVERLOD<uint> _SolverStrandLodRequests;		// x: LOD level each individual strand requests based on coverage / etc.
 HAIRSIM_SOLVERLOD<uint> _SolverStrandLod;				// x: Final LOD level for each strand after cluster merging.
+HAIRSIM_SOLVERLOD<uint> _SolverStrandLodPrev;			// x: Previous render frame's solver lod levels.
 HAIRSIM_SOLVERLOD<uint> _SolverStrandIndices;			// x: The strand index to simulate. The sparse set of strands simulated this frame.
 HAIRSIM_SOLVERLOD<uint> _SolverStrandCount;				// size=1, the count of strands to simulate from the _SolverStrandIndices buffer.
 
@@ -78,7 +79,7 @@ HAIRSIM_SOLVERINIT<float4> _InitialParticleFrameDelta;	// quat(xyz,w): initial p
 HAIRSIM_SOLVERINIT<uint2> _InitialParticleFrameDelta16;	// xy: compressed initial particle material frame delta
 
 HAIRSIM_SOLVERDATA<float3> _ParticlePosition;			// xyz: position
-HAIRSIM_SOLVERINIT<float3> _ParticlePositionPrev;		// xyz: ...
+HAIRSIM_SOLVERDATA<float3> _ParticlePositionPrev;		// xyz: ...
 HAIRSIM_SOLVERINIT<float3> _ParticlePositionPrevPrev;	// xyz: ...
 HAIRSIM_SOLVERDATA<float3> _ParticleVelocity;			// xyz: velocity
 HAIRSIM_SOLVERINIT<float3> _ParticleVelocityPrev;		// xyz: ...

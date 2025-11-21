@@ -1,7 +1,12 @@
 ﻿//#pragma use_dxc
 //#pragma enable_d3d11_debug_symbols
 
+// Initialization. Runs when asset is created. 
+#pragma kernel KInitialize								THREAD_GROUP_SIZE=64	F_INIT
+#pragma kernel KInitializePostVolume					THREAD_GROUP_SIZE=64	F_INIT
 #pragma kernel KRootsHistory							THREAD_GROUP_SIZE=64	F_INPUT
+
+// Runs every frame:
 #pragma kernel KRoots									THREAD_GROUP_SIZE=64	F_INPUT
 #pragma kernel KRootsHistoryAdd							THREAD_GROUP_SIZE=64	F_INPUT
 #pragma kernel KRootsSubstep							THREAD_GROUP_SIZE=64	F_INPUT
@@ -14,8 +19,7 @@
 #pragma kernel KStrandLODSelection						THREAD_GROUP_SIZE=64	F_LOD
 #pragma kernel KStrandLODFinish							THREAD_GROUP_SIZE=1		F_LOD
 
-#pragma kernel KInitialize								THREAD_GROUP_SIZE=64	F_INIT
-#pragma kernel KInitializePostVolume					THREAD_GROUP_SIZE=64	F_INIT
+#pragma kernel KSolverBackfill							THREAD_GROUP_SIZE=64	F_SOLVE
 #pragma kernel KSolveConstraints_GaussSeidelReference	THREAD_GROUP_SIZE=64	F_SOLVE
 #pragma kernel KSolveConstraints_GaussSeidel			THREAD_GROUP_SIZE=64	F_SOLVE		ALLOW_GROUPSHARED_STRAND_PROPERTIES=0 ALLOW_GROUPSHARED_BOUNDARY_DATA=1
 #pragma kernel KSolveConstraints_Jacobi_16				THREAD_GROUP_SIZE=16	F_SOLVE		KSolveConstraints_Jacobi=KSolveConstraints_Jacobi_16
@@ -23,7 +27,6 @@
 #pragma kernel KSolveConstraints_Jacobi_64				THREAD_GROUP_SIZE=64	F_SOLVE		KSolveConstraints_Jacobi=KSolveConstraints_Jacobi_64
 #pragma kernel KSolveConstraints_Jacobi_128				THREAD_GROUP_SIZE=128	F_SOLVE		KSolveConstraints_Jacobi=KSolveConstraints_Jacobi_128
 #pragma kernel KInterpolate								THREAD_GROUP_SIZE=64	F_INTERPOLATE
-#pragma kernel KInterpolateAdd							THREAD_GROUP_SIZE=64	F_INTERPOLATE
 #pragma kernel KInterpolatePromote						THREAD_GROUP_SIZE=64	F_INTERPOLATE
 #pragma kernel KStaging									THREAD_GROUP_SIZE=64	F_STAGING
 #pragma kernel KStagingSubdivision						THREAD_GROUP_SIZE=64	F_STAGING
@@ -459,6 +462,175 @@ float GetGlobalRotationInfluence(uint strandIndex, uint strandParticleNumber)
 {
 	float k = _GlobalRotation * GetGlobalParamAttenuation(strandIndex, strandParticleNumber);
 	return k;
+}
+
+// interpolation
+// ----
+
+void StoreInterpolatedPosition(int particleIndex, float3 position)
+{
+	_ParticlePosition[particleIndex].xyz = position;
+	#if SECOND_ORDER_UPDATE
+	_ParticlePositionPrev[particleIndex].xyz = position;
+	#endif
+}
+
+void StoreInterpolatedVelocity(int particleIndex, float3 velocity)
+{
+	_ParticleVelocity[particleIndex] = velocity;
+	#if SECOND_ORDER_UPDATE
+	_ParticleVelocityPrev[particleIndex] = 0;
+	#endif
+}
+
+void InterpolateStrandPosition(const uint strandIdx, const LODIndices lodRange)
+{
+	DECLARE_STRAND(strandIdx);
+	
+	const uint strandIndexLo = _LODGuideIndex[(lodRange.lodIndexLo * _StrandCount) + strandIndex];
+	const uint strandIndexHi = _LODGuideIndex[(lodRange.lodIndexHi * _StrandCount) + strandIndex];
+
+	const uint strandParticleBeginLo = strandIndexLo * _StrandParticleOffset;
+	const uint strandParticleBeginHi = strandIndexHi * _StrandParticleOffset;
+
+	const float strandContribLo = _RootScale[strandIndex].x / _RootScale[strandIndexLo].x;
+	const float strandContribHi = _RootScale[strandIndex].x / _RootScale[strandIndexHi].x;
+
+	const float4 rootFrame = _RootFrameNext[strandIndex];
+	const float4 rootFrameLo = _RootFrameNext[strandIndexLo];
+	const float4 rootFrameHi = _RootFrameNext[strandIndexHi];
+
+	const float3 rootPosition = _RootPositionNext[strandIndex].xyz;
+	const float3 rootPositionLo = _RootPositionNext[strandIndexLo].xyz;
+	const float3 rootPositionHi = _RootPositionNext[strandIndexHi].xyz;
+
+	// Calculates the rest position of the follower from packed rotations (FrameDelta16) rather than stored positions.
+	// This could save a lot of VRAM, but is much slower because of the reconstruction and quaternion math.
+#if 0// experimental
+	float4 frame = rootFrame;
+	float4 frameLo = rootFrameLo;
+	float4 frameHi = rootFrameHi;
+
+	float3 initialPosition = rootPosition;
+	float3 initialPositionLo = rootPositionLo;
+	float3 initialPositionHi = rootPositionHi;
+
+	float step = GetParticleInterval(strandIndex);
+	float stepLo = GetParticleInterval(strandIndexLo);
+	float stepHi = GetParticleInterval(strandIndexHi);
+
+	if (lodRange.lodBlendFrac == 0.0)
+	{
+		for (uint i = strandParticleBegin + strandParticleStride, iLo = strandParticleBeginLo + strandParticleStride; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride)
+		{
+			frame = QMul(frame, QDecode16(_InitialParticleFrameDelta16[i]));
+			frameLo = QMul(frameLo, QDecode16(_InitialParticleFrameDelta16[iLo]));
+
+			initialPosition += QMul(frame, float3(0.0, 1.0, 0.0)) * step;
+			initialPositionLo += QMul(frameLo, float3(0.0, 1.0, 0.0)) * stepLo;
+
+			float3 positionDeltaLo = strandContribLo * (_ParticlePosition[iLo].xyz - initialPositionLo);
+			float3 position = initialPosition + positionDeltaLo;
+
+			//TODO transition strand to interpolated to avoid pops
+			StoreInterpolatedPosition(i, position);
+		}
+	}
+	else
+	{
+		for (uint i = strandParticleBegin + strandParticleStride, iLo = strandParticleBeginLo + strandParticleStride, iHi = strandParticleBeginHi + strandParticleStride; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride, iHi += strandParticleStride)
+		{
+			frame = QMul(frame, QDecode16(_InitialParticleFrameDelta16[i]));
+			frameLo = QMul(frameLo, QDecode16(_InitialParticleFrameDelta16[iLo]));
+			frameHi = QMul(frameHi, QDecode16(_InitialParticleFrameDelta16[iHi]));
+
+			initialPosition += QMul(frame, float3(0.0, 1.0, 0.0)) * step;
+			initialPositionLo += QMul(frameLo, float3(0.0, 1.0, 0.0)) * stepLo;
+			initialPositionHi += QMul(frameHi, float3(0.0, 1.0, 0.0)) * stepHi;
+
+			float3 positionDeltaLo = strandContribLo * (_ParticlePosition[iLo].xyz - initialPositionLo);
+			float3 positionDeltaHi = strandContribHi * (_ParticlePosition[iHi].xyz - initialPositionHi);
+			float3 position = initialPosition + lerp(positionDeltaLo, positionDeltaHi, lodRange.lodBlendFrac);
+
+			//TODO transition strand to interpolated to avoid pops
+			StoreInterpolatedPosition(i, position);
+		}
+	}
+#else
+	StoreInterpolatedPosition(strandParticleBegin, rootPosition);
+
+	if (lodRange.lodBlendFrac == 0.0)
+	{
+		for (uint i = strandParticleBegin + strandParticleStride, iLo = strandParticleBeginLo + strandParticleStride; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride)
+		{
+			float3 initialOffset = QMul(rootFrame, _InitialParticleOffset[i].xyz) * _GroupScale;
+			float3 initialOffsetLo = QMul(rootFrameLo, _InitialParticleOffset[iLo].xyz) * _GroupScale;
+
+			float3 currentOffsetLo = _ParticlePosition[iLo].xyz - rootPositionLo;
+
+			float3 positionDeltaLo = strandContribLo * (currentOffsetLo - initialOffsetLo);
+			float3 position = rootPosition + initialOffset + positionDeltaLo;
+
+			//TODO transition strand to interpolated to avoid pops
+			StoreInterpolatedPosition(i, position);
+		}
+	}
+	else
+	{
+		for (uint i = strandParticleBegin + strandParticleStride, iLo = strandParticleBeginLo + strandParticleStride, iHi = strandParticleBeginHi + strandParticleStride; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride, iHi += strandParticleStride)
+		{
+			float3 initialOffset = QMul(rootFrame, _InitialParticleOffset[i].xyz) * _GroupScale;
+			float3 initialOffsetLo = QMul(rootFrameLo, _InitialParticleOffset[iLo].xyz) * _GroupScale;
+			float3 initialOffsetHi = QMul(rootFrameHi, _InitialParticleOffset[iHi].xyz) * _GroupScale;
+
+			float3 currentOffsetLo = _ParticlePosition[iLo].xyz - rootPositionLo;
+			float3 currentOffsetHi = _ParticlePosition[iHi].xyz - rootPositionHi;
+
+			float3 positionDeltaLo = strandContribLo * (currentOffsetLo - initialOffsetLo);
+			float3 positionDeltaHi = strandContribHi * (currentOffsetHi - initialOffsetHi);
+			float3 position = rootPosition + initialOffset + lerp(positionDeltaLo, positionDeltaHi, lodRange.lodBlendFrac);
+
+			//TODO transition strand to interpolated to avoid pops
+			StoreInterpolatedPosition(i, position);
+		}
+	}
+#endif
+}
+
+void InterpolateStrandVelocity(const uint index, const LODIndices lodDesc)
+{
+	DECLARE_STRAND(index);
+
+	const uint strandIndexLo = _LODGuideIndex[(lodDesc.lodIndexLo * _StrandCount) + strandIndex];
+	const uint strandIndexHi = _LODGuideIndex[(lodDesc.lodIndexHi * _StrandCount) + strandIndex];
+
+	const uint strandParticleBeginLo = strandIndexLo * _StrandParticleOffset;
+	const uint strandParticleBeginHi = strandIndexHi * _StrandParticleOffset;
+
+	const float strandContribLo = _RootScale[strandIndex].x / _RootScale[strandIndexLo].x;
+	const float strandContribHi = _RootScale[strandIndex].x / _RootScale[strandIndexHi].x;
+
+	if (lodDesc.lodBlendFrac == 0.0)
+	{
+		for (uint i = strandParticleBegin, iLo = strandParticleBeginLo; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride)
+		{
+			float3 velocityLo = strandContribLo * _ParticleVelocity[iLo];
+			float3 velocity = velocityLo;
+
+			StoreInterpolatedVelocity(i, velocity);
+		}
+	}
+	else
+	{
+		for (uint i = strandParticleBegin, iLo = strandParticleBeginLo, iHi = strandParticleBeginHi; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride, iHi += strandParticleStride)
+		{
+			float3 velocityLo = strandContribLo * _ParticleVelocity[iLo];
+			float3 velocityHi = strandContribHi * _ParticleVelocity[iHi];
+			float3 velocity = lerp(velocityLo, velocityHi, lodDesc.lodBlendFrac);
+
+			StoreInterpolatedVelocity(i, velocity);
+		}
+	}
 }
 
 //--------------
@@ -1064,7 +1236,7 @@ void KStrandLODRequest(
 	// if (_StrandTileMask.SampleLevel(sampler_StrandTileMask, tilemaskUV, 0).r != 0) {
 	// 	return;
 	// }
-	//
+	
 	if (maxCoverage > .001)
 	{
 		uint renderIndex;
@@ -1255,6 +1427,70 @@ void KLODSelectionPost(
 // kernels solve
 
 #if F_SOLVE
+
+// This kernel backfills velocities and positions for strands that are entering the simulation on this frame.
+// We take this information from their guide strand from last frame, which is guaranteed to be in the simulation.
+[numthreads(THREAD_GROUP_SIZE, 1, 1)]
+void KSolverBackfill(
+	uint3 groupIdx : SV_GroupID,
+	uint3 localIdx : SV_GroupThreadID,
+	uint3 worldIdx : SV_DispatchThreadID,
+	uint threadIdx : SV_GroupIndex)
+	// SV_GroupID           execution group coords
+	// SV_GroupThreadID     thread coords within execution group
+	// SV_DispatchThreadID  thread coords (global)
+	// SV_GroupIndex        thread offset within execution group
+{
+	uint strandIdx = _SolverStrandIndices[worldIdx.x];
+	DECLARE_STRAND(strandIdx);
+	
+	// Get the guide strand from the previous frame, whose velocity we were following.
+	uint lodPrev = _SolverStrandLodPrev[strandIndex];
+	uint guidePrev = _LODGuideIndex[lodPrev * _StrandCount + strandIndex];
+	
+	// If we were not our own guide last frame, we were interpolated. 
+	// Since we are in _SolverStrandIndices now, we are being simulated this frame.
+	// We need to initialize our physics state from the interpolation result to prevent popping.
+	if (guidePrev != strandIndex)
+	{
+		// 1. Calculate kinematic position/velocity based on previous frame's guide
+		LODIndices prevLOD;
+		prevLOD.lodIndexLo = lodPrev;
+		prevLOD.lodIndexHi = lodPrev;
+		prevLOD.lodBlendFrac = 0;
+		prevLOD.lodValue = 0; 
+
+		// This writes to _ParticlePosition
+		InterpolateStrandPosition(strandIndex, prevLOD);
+		
+		// This writes to _ParticleVelocity
+		// We pass a full range check because we are calling specific indices
+		InterpolateStrandVelocity(strandIndex, prevLOD);
+
+		// 2. Initialize Verlet History
+		// The solver expects _ParticlePositionPrev to be valid.
+		// We back-calculate it based on the interpolated velocity: x_prev = x_curr - v * dt
+		for (uint i = strandParticleBegin; i != strandParticleEnd; i += strandParticleStride)
+		{
+			float3 p = _ParticlePosition[i];
+			float3 v = _ParticleVelocity[i];
+			
+			// Place the particle's previous position one step in the past.
+			_ParticlePositionPrev[i] = p - v * _DT;
+			
+			#if SECOND_ORDER_UPDATE
+			_ParticlePositionPrevPrev[i] = p - v * _DT * 2.0;
+			_ParticleVelocityPrev[i] = v;
+			#endif
+			
+			// Clear any accumulated correction from FTL/Collisions
+			if (ENABLE(SOLVERFEATURES_DISTANCE_FTL))
+			{
+				_ParticleCorrection[i] = 0;
+			}
+		}
+	}
+}
 
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KSolveConstraints_GaussSeidelReference(
@@ -2230,171 +2466,7 @@ void KSolveConstraints_Jacobi(
 
 #if F_INTERPOLATE
 
-void StoreInterpolatedPosition(int particleIndex, float3 position)
-{
-	_ParticlePosition[particleIndex].xyz = position;
-#if SECOND_ORDER_UPDATE
-	_ParticlePositionPrev[particleIndex].xyz = position;
-#endif
-}
 
-void StoreInterpolatedVelocity(int particleIndex, float3 velocity)
-{
-	_ParticleVelocity[particleIndex] = velocity;
-#if SECOND_ORDER_UPDATE
-	_ParticleVelocityPrev[particleIndex] = 0;
-#endif
-}
-
-void InterpolateStrandPosition(const uint strandIdx, const LODIndices lodRange)
-{
-	DECLARE_STRAND(strandIdx);
-	
-	const uint strandIndexLo = _LODGuideIndex[(lodRange.lodIndexLo * _StrandCount) + strandIndex];
-	const uint strandIndexHi = _LODGuideIndex[(lodRange.lodIndexHi * _StrandCount) + strandIndex];
-
-	const uint strandParticleBeginLo = strandIndexLo * _StrandParticleOffset;
-	const uint strandParticleBeginHi = strandIndexHi * _StrandParticleOffset;
-
-	const float strandContribLo = _RootScale[strandIndex].x / _RootScale[strandIndexLo].x;
-	const float strandContribHi = _RootScale[strandIndex].x / _RootScale[strandIndexHi].x;
-
-	const float4 rootFrame = _RootFrameNext[strandIndex];
-	const float4 rootFrameLo = _RootFrameNext[strandIndexLo];
-	const float4 rootFrameHi = _RootFrameNext[strandIndexHi];
-
-	const float3 rootPosition = _RootPositionNext[strandIndex].xyz;
-	const float3 rootPositionLo = _RootPositionNext[strandIndexLo].xyz;
-	const float3 rootPositionHi = _RootPositionNext[strandIndexHi].xyz;
-
-	// Calculates the rest position of the follower from packed rotations (FrameDelta16) rather than stored positions.
-	// This could save a lot of VRAM, but is much slower because of the reconstruction and quaternion math.
-#if 0// experimental
-	float4 frame = rootFrame;
-	float4 frameLo = rootFrameLo;
-	float4 frameHi = rootFrameHi;
-
-	float3 initialPosition = rootPosition;
-	float3 initialPositionLo = rootPositionLo;
-	float3 initialPositionHi = rootPositionHi;
-
-	float step = GetParticleInterval(strandIndex);
-	float stepLo = GetParticleInterval(strandIndexLo);
-	float stepHi = GetParticleInterval(strandIndexHi);
-
-	if (lodRange.lodBlendFrac == 0.0)
-	{
-		for (uint i = strandParticleBegin + strandParticleStride, iLo = strandParticleBeginLo + strandParticleStride; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride)
-		{
-			frame = QMul(frame, QDecode16(_InitialParticleFrameDelta16[i]));
-			frameLo = QMul(frameLo, QDecode16(_InitialParticleFrameDelta16[iLo]));
-
-			initialPosition += QMul(frame, float3(0.0, 1.0, 0.0)) * step;
-			initialPositionLo += QMul(frameLo, float3(0.0, 1.0, 0.0)) * stepLo;
-
-			float3 positionDeltaLo = strandContribLo * (_ParticlePosition[iLo].xyz - initialPositionLo);
-			float3 position = initialPosition + positionDeltaLo;
-
-			//TODO transition strand to interpolated to avoid pops
-			StoreInterpolatedPosition(i, position);
-		}
-	}
-	else
-	{
-		for (uint i = strandParticleBegin + strandParticleStride, iLo = strandParticleBeginLo + strandParticleStride, iHi = strandParticleBeginHi + strandParticleStride; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride, iHi += strandParticleStride)
-		{
-			frame = QMul(frame, QDecode16(_InitialParticleFrameDelta16[i]));
-			frameLo = QMul(frameLo, QDecode16(_InitialParticleFrameDelta16[iLo]));
-			frameHi = QMul(frameHi, QDecode16(_InitialParticleFrameDelta16[iHi]));
-
-			initialPosition += QMul(frame, float3(0.0, 1.0, 0.0)) * step;
-			initialPositionLo += QMul(frameLo, float3(0.0, 1.0, 0.0)) * stepLo;
-			initialPositionHi += QMul(frameHi, float3(0.0, 1.0, 0.0)) * stepHi;
-
-			float3 positionDeltaLo = strandContribLo * (_ParticlePosition[iLo].xyz - initialPositionLo);
-			float3 positionDeltaHi = strandContribHi * (_ParticlePosition[iHi].xyz - initialPositionHi);
-			float3 position = initialPosition + lerp(positionDeltaLo, positionDeltaHi, lodRange.lodBlendFrac);
-
-			//TODO transition strand to interpolated to avoid pops
-			StoreInterpolatedPosition(i, position);
-		}
-	}
-#else
-	StoreInterpolatedPosition(strandParticleBegin, rootPosition);
-
-	if (lodRange.lodBlendFrac == 0.0)
-	{
-		for (uint i = strandParticleBegin + strandParticleStride, iLo = strandParticleBeginLo + strandParticleStride; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride)
-		{
-			float3 initialOffset = QMul(rootFrame, _InitialParticleOffset[i].xyz) * _GroupScale;
-			float3 initialOffsetLo = QMul(rootFrameLo, _InitialParticleOffset[iLo].xyz) * _GroupScale;
-
-			float3 currentOffsetLo = _ParticlePosition[iLo].xyz - rootPositionLo;
-
-			float3 positionDeltaLo = strandContribLo * (currentOffsetLo - initialOffsetLo);
-			float3 position = rootPosition + initialOffset + positionDeltaLo;
-
-			//TODO transition strand to interpolated to avoid pops
-			StoreInterpolatedPosition(i, position);
-		}
-	}
-	else
-	{
-		for (uint i = strandParticleBegin + strandParticleStride, iLo = strandParticleBeginLo + strandParticleStride, iHi = strandParticleBeginHi + strandParticleStride; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride, iHi += strandParticleStride)
-		{
-			float3 initialOffset = QMul(rootFrame, _InitialParticleOffset[i].xyz) * _GroupScale;
-			float3 initialOffsetLo = QMul(rootFrameLo, _InitialParticleOffset[iLo].xyz) * _GroupScale;
-			float3 initialOffsetHi = QMul(rootFrameHi, _InitialParticleOffset[iHi].xyz) * _GroupScale;
-
-			float3 currentOffsetLo = _ParticlePosition[iLo].xyz - rootPositionLo;
-			float3 currentOffsetHi = _ParticlePosition[iHi].xyz - rootPositionHi;
-
-			float3 positionDeltaLo = strandContribLo * (currentOffsetLo - initialOffsetLo);
-			float3 positionDeltaHi = strandContribHi * (currentOffsetHi - initialOffsetHi);
-			float3 position = rootPosition + initialOffset + lerp(positionDeltaLo, positionDeltaHi, lodRange.lodBlendFrac);
-
-			//TODO transition strand to interpolated to avoid pops
-			StoreInterpolatedPosition(i, position);
-		}
-	}
-#endif
-}
-
-void InterpolateStrandVelocity(const uint index, const uint2 range, const LODIndices lodDesc)
-{
-	DECLARE_STRAND_WITHIN(index, range);
-
-	const uint strandIndexLo = _LODGuideIndex[(lodDesc.lodIndexLo * _StrandCount) + strandIndex];
-	const uint strandIndexHi = _LODGuideIndex[(lodDesc.lodIndexHi * _StrandCount) + strandIndex];
-
-	const uint strandParticleBeginLo = strandIndexLo * _StrandParticleOffset;
-	const uint strandParticleBeginHi = strandIndexHi * _StrandParticleOffset;
-
-	const float strandContribLo = _RootScale[strandIndex].x / _RootScale[strandIndexLo].x;
-	const float strandContribHi = _RootScale[strandIndex].x / _RootScale[strandIndexHi].x;
-
-	if (lodDesc.lodBlendFrac == 0.0)
-	{
-		for (uint i = strandParticleBegin, iLo = strandParticleBeginLo; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride)
-		{
-			float3 velocityLo = strandContribLo * _ParticleVelocity[iLo];
-			float3 velocity = velocityLo;
-
-			StoreInterpolatedVelocity(i, velocity);
-		}
-	}
-	else
-	{
-		for (uint i = strandParticleBegin, iLo = strandParticleBeginLo, iHi = strandParticleBeginHi; i != strandParticleEnd; i += strandParticleStride, iLo += strandParticleStride, iHi += strandParticleStride)
-		{
-			float3 velocityLo = strandContribLo * _ParticleVelocity[iLo];
-			float3 velocityHi = strandContribHi * _ParticleVelocity[iHi];
-			float3 velocity = lerp(velocityLo, velocityHi, lodDesc.lodBlendFrac);
-
-			StoreInterpolatedVelocity(i, velocity);
-		}
-	}
-}
 
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KInterpolate(
@@ -2421,20 +2493,10 @@ void KInterpolate(
 	InterpolateStrandPosition(strandIndex, lodRange);
 }
 
-[numthreads(THREAD_GROUP_SIZE, 1, 1)]
-void KInterpolateAdd(
-	uint3 groupIdx : SV_GroupID,
-	uint3 localIdx : SV_GroupThreadID,
-	uint3 worldIdx : SV_DispatchThreadID,
-	uint threadIdx : SV_GroupIndex)
-	// SV_GroupID           execution group coords
-	// SV_GroupThreadID     thread coords within execution group
-	// SV_DispatchThreadID  thread coords (global)
-	// SV_GroupIndex        thread offset within execution group
-{
-	InterpolateStrandPosition(worldIdx.x, _SolverLODStage[SOLVERLODSTAGE_PHYSICS_PREV]);
-}
 
+// todo: Remove this kernel too. But we want to move this to a new backfill kernel I think.
+// This kernel backfills strand velocity for strands that are entering the simulation. 
+// It interpolates the velocity from the parent guides.
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KInterpolatePromote(
 	uint3 groupIdx : SV_GroupID,
@@ -2446,7 +2508,8 @@ void KInterpolatePromote(
 	// SV_DispatchThreadID  thread coords (global)
 	// SV_GroupIndex        thread offset within execution group
 {
-	InterpolateStrandVelocity(worldIdx.x, _SolverLODRange[SOLVERLODRANGE_INTERPOLATE_PROMOTE], _SolverLODStage[SOLVERLODSTAGE_PHYSICS_PREV]);
+	// currently invalid anyway since it uses the broadphase solver stage indices.
+	InterpolateStrandVelocity(worldIdx.x, _SolverLODStage[SOLVERLODSTAGE_PHYSICS_PREV]);
 }
 
 #endif//F_INTERPOLATE
