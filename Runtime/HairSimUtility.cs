@@ -491,18 +491,8 @@ namespace Unity.DemoTeam.Hair
 				cmd.RequestAsyncReadback(buffer, Callback);
 			}
 
-			public void Sync()
+			public NativeArray<T> GetData<T>() where T : struct
 			{
-				AsyncGPUReadback.WaitAllRequests();
-			}
-
-			public NativeArray<T> GetData<T>(bool forceSync = false) where T : struct
-			{
-				if (forceSync)
-				{
-					Sync();
-				}
-
 				return buffer.Reinterpret<T>(sizeof(byte));
 			}
 		}
