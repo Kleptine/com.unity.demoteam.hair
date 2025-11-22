@@ -1,5 +1,6 @@
-﻿//#pragma use_dxc
-//#pragma enable_d3d11_debug_symbols
+﻿#pragma use_dxc // This shader takes 30 seconds to compile if you don't use DXC!
+
+// #pragma enable_d3d11_debug_symbols
 
 // Initialization. Runs when asset is created. 
 #pragma kernel KInitialize								THREAD_GROUP_SIZE=64	F_INIT
@@ -32,6 +33,9 @@
 #pragma kernel KStagingSubdivision						THREAD_GROUP_SIZE=64	F_STAGING
 #pragma kernel KStagingHistory							THREAD_GROUP_SIZE=64	F_STAGING
 #pragma kernel KStagingHistoryAdd						THREAD_GROUP_SIZE=64	F_STAGING
+
+// #define F_LOD 1
+
 
 //----------
 // includes
@@ -467,11 +471,14 @@ void StoreInterpolatedPosition(int particleIndex, float3 position)
 	#if SECOND_ORDER_UPDATE
 	_ParticlePositionPrev[particleIndex].xyz = position;
 	#endif
+	
 }
 
 void StoreInterpolatedVelocity(int particleIndex, float3 velocity)
 {
+	#if F_SOLVE || F_INTERPOLATE
 	_ParticleVelocity[particleIndex] = velocity;
+	#endif
 	#if SECOND_ORDER_UPDATE
 	_ParticleVelocityPrev[particleIndex] = 0;
 	#endif
