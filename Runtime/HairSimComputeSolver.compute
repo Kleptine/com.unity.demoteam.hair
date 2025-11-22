@@ -465,6 +465,7 @@ float GetGlobalRotationInfluence(uint strandIndex, uint strandParticleNumber)
 // interpolation
 // ----
 
+#if F_SOLVE || F_INTERPOLATE
 void StoreInterpolatedPosition(int particleIndex, float3 position)
 {
 	_ParticlePosition[particleIndex].xyz = position;
@@ -474,11 +475,10 @@ void StoreInterpolatedPosition(int particleIndex, float3 position)
 	
 }
 
+
 void StoreInterpolatedVelocity(int particleIndex, float3 velocity)
 {
-	#if F_SOLVE || F_INTERPOLATE
 	_ParticleVelocity[particleIndex] = velocity;
-	#endif
 	#if SECOND_ORDER_UPDATE
 	_ParticleVelocityPrev[particleIndex] = 0;
 	#endif
@@ -633,6 +633,7 @@ void InterpolateStrandVelocity(const uint index, const LODIndices lodDesc)
 		}
 	}
 }
+#endif
 
 //--------------
 // kernels init
