@@ -1,4 +1,4 @@
-﻿//#pragma use_dxc
+﻿// #pragma use_dxc // Note: DXC makes the hairs disappear for some reason.
 //#pragma enable_d3d11_debug_symbols
 
 #pragma kernel KBoundsClear						THREAD_GROUP_SIZE=64	F_BOUNDS
