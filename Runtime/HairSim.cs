@@ -188,12 +188,6 @@ namespace Unity.DemoTeam.Hair
 		//TODO move to conf
 		public const int THREAD_GROUP_SIZE = 64;
 
-		//TODO move to conf
-		public const int MIN_STRAND_COUNT = 64;
-		public const int MAX_STRAND_COUNT = 64000;
-		public const int MIN_STRAND_PARTICLE_COUNT = 3;
-		public const int MAX_STRAND_PARTICLE_COUNT = 128;
-
 		static HairSim()
 		{
 			if (s_initialized == false)

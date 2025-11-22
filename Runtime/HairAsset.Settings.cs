@@ -13,6 +13,12 @@ namespace Unity.DemoTeam.Hair
 {
 	public partial class HairAsset
 	{
+		//TODO move to conf
+		public const int MIN_STRAND_COUNT = 64;
+		public const int MAX_STRAND_COUNT = 1048576; // 1m
+		public const int MIN_STRAND_PARTICLE_COUNT = 3;
+		public const int MAX_STRAND_PARTICLE_COUNT = 128;
+		
 		public enum Type
 		{
 			Procedural	= 0,
@@ -119,9 +125,9 @@ namespace Unity.DemoTeam.Hair
 
 			[LineHeader("Quantity")]
 
-			[Range(HairSim.MIN_STRAND_COUNT, HairSim.MAX_STRAND_COUNT), Tooltip("Number of strands")]
+			[Range(MIN_STRAND_COUNT, MAX_STRAND_COUNT), Tooltip("Number of strands")]
 			public int strandCount;
-			[Range(HairSim.MIN_STRAND_PARTICLE_COUNT, HairSim.MAX_STRAND_PARTICLE_COUNT), Tooltip("Number of equidistant particles along each strand")]
+			[Range(MIN_STRAND_PARTICLE_COUNT, MAX_STRAND_PARTICLE_COUNT), Tooltip("Number of equidistant particles along each strand")]
 			public int strandParticleCount;
 
 			[LineHeader("Proportions")]
@@ -287,8 +293,8 @@ namespace Unity.DemoTeam.Hair
 		[Serializable]
 		public partial struct SettingsResolve
 		{
-			public const int MIN_RESAMPLE_RESOLUTION = HairSim.MIN_STRAND_PARTICLE_COUNT;
-			public const int MAX_RESAMPLE_RESOLUTION = HairSim.MAX_STRAND_PARTICLE_COUNT;
+			public const int MIN_RESAMPLE_RESOLUTION = MIN_STRAND_PARTICLE_COUNT;
+			public const int MAX_RESAMPLE_RESOLUTION = MAX_STRAND_PARTICLE_COUNT;
 			public const int MIN_RESAMPLE_QUALITY = 1;
 			public const int MAX_RESAMPLE_QUALITY = 5;
 
