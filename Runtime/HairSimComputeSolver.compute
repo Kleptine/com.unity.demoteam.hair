@@ -2476,8 +2476,9 @@ void KSolveConstraints_Jacobi(
 
 #if F_INTERPOLATE
 
-
-
+// This kernel runs over all the rendered strands, interpolating their positions based on their guides in the simulation.
+// Note that currently this also runs on the simulated strands that are rendered, which is unnecessary. We could skip 
+// that work if the branching is worthwhile. (right now this kernel isn't the bottleneck)
 [numthreads(THREAD_GROUP_SIZE, 1, 1)]
 void KInterpolate(
 	uint3 groupIdx : SV_GroupID,
