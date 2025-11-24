@@ -187,6 +187,7 @@ namespace Unity.DemoTeam.Hair
 			public uint _SolverLODMethod;				// solver lod method (for lod selection)
 			public float _SolverLODCeiling;				// solver lod ceiling
 			public float _SolverLODScale;				// solver lod scale
+			public float _SolverLODClusterSizeTarget;	// target size of clusters on screen (pixels)
 			public float _SolverLODBias;				// solver lod bias
 
 			// +4

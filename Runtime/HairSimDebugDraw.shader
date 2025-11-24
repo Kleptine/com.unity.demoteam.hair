@@ -244,7 +244,7 @@
 	DebugVaryings DebugVert_StrandLodLevels(uint instanceID : SV_InstanceID, uint vertexID : SV_VertexID)
 	{
 		const uint strandIndex = instanceID;
-		const float triangleSize = .2;
+		const float triangleSize = .1;
 
 		// 1. Determine Hierarchy
 		uint debugLodLevel = min((uint)_DebugLod, _LODCount - 1);

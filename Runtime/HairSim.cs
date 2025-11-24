@@ -908,6 +908,7 @@ namespace Unity.DemoTeam.Hair
 			solverConstants._SolverLODMethod = ((uint)settingsPhysics.kLODSelection & 0xffffu) | (stepCount > 0 ? 0x10000u : 0x00000u);
 			solverConstants._SolverLODCeiling = settingsPhysics.kLODCeiling;
 			solverConstants._SolverLODScale = settingsPhysics.kLODScale;
+			solverConstants._SolverLODClusterSizeTarget = settingsPhysics.kLODClusterSizeTarget;
 			solverConstants._SolverLODBias = (settingsPhysics.kLODSelection == SolverLODSelection.Manual) ? settingsPhysics.kLODSelectionValue : settingsPhysics.kLODBias;
 
 			solverConstants._RenderLODMethod = (uint)settingsRendering.kLODSelection;

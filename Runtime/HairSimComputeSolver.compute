@@ -1196,7 +1196,8 @@ void KStrandLODRequest(
 	// The maximum length a strand could be
 	float maxStrandLength = _RootScale[strandIndex].x * (_GroupMaxParticleInterval * (_StrandParticleCount - 1));
 	float diameter = _GroupMaxParticleDiameter * _RootScale[strandIndex].y;
-
+	float radius = diameter * 0.5f;
+	
 	// We currently LOD based on how far away each strand is from the camera (number of pixels the strand length is on screen).
 	// todo: We should probably LOD based on the size of the parent clusters. A strand can be lod'd until the cluster
 	// it is a part of reaches a certain size on screen (which can be our toplevel configuration). This may be slower though.
@@ -1214,14 +1215,34 @@ void KStrandLODRequest(
 		}
 	}
 	
+	// Find the first cluster above it that covers the target size on screen.
+	// This keeps the size of simulation clusters on screen uniform as we zoom in and out.
+	uint solverLod = _LODCount - 1; // default to the finest simulation cluster
 	
-	float clampedCoverage = clamp(maxCoverage, 20, 100);
+	// This represents how many pixels 1m of this strand covers. It's only accurate at *this* strands position, so
+	// technically each potential cluster is evaluated as if it were placed at the strand itself. (this should be fine
+	// because the output of this kernel is a representation of what this strand wants, not what it will get)
+	float pixelsPerMeter = maxCoverage / diameter;
 	
-	// todo: We need to multiply by the LOD scaling parameters!
-	float solverLodValue = RangeRemap(20, 100, clampedCoverage) * _SolverLODScale + _SolverLODBias;
+	for(int i = 0; i < _LODCount; i++) {
+		// Due to the way reach is calculated the reach of the max LOD is always zero, so instead use the diameter of the strand.
+		float guideReach = i == _LODCount - 1 ? diameter : _LODGuideReach[(i * _StrandCount) + strandIndex] * 2.0;
+		
+		float clusterCoverage = guideReach * pixelsPerMeter;
 	
-	// Round to nearest lod level for solver.
-	uint solverLod = (uint) round(RangeRemapFrom01(0, _LODCount - 1, solverLodValue));
+		// Take the first cluster that is smaller than the target cutoff.
+		if (clusterCoverage < _SolverLODClusterSizeTarget) {
+			solverLod = i;
+			break;
+		}
+	}
+	
+	// Scale the final value by our adjustments.
+	float solverLodValue = solverLod / float(_LODCount - 1);
+	solverLodValue = min(saturate(solverLodValue * _SolverLODScale + _SolverLODBias), _SolverLODCeiling);
+	
+	// Round to nearest final lod level.
+	solverLod = (uint) round(RangeRemapFrom01(0, _LODCount - 1, solverLodValue));
 	
 	// Calculates the maximum LOD request for each strand. For each strand, it's the maximum lod level from itself
 	// and any strands that requested it as a guide in the previous phase. You can think of this as bubbling up the LOD request

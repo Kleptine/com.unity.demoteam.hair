@@ -227,6 +227,9 @@ namespace Unity.DemoTeam.Hair
 			public SolverLODSelection kLODSelection;
 			[VisibleIf(nameof(kLODSelection), SolverLODSelection.Manual), Range(0.0f, 1.0f)]
 			public float kLODSelectionValue;
+			[Tooltip("LOD selection for the solver will attempt to keep clusters below this target size on screen (pixels)")]
+			[Range(0.0f, 1000.0f)]
+			public float kLODClusterSizeTarget;
 			[Range(0.0f, 1.0f)]
 			public float kLODCeiling;
 			[Range(0.0f, 4.0f)]
@@ -281,6 +284,7 @@ namespace Unity.DemoTeam.Hair
 				kLODSelectionValue = 1.0f,
 				kLODCeiling = 1.0f,
 				kLODScale = 1.0f,
+				kLODClusterSizeTarget = 10.0f,
 				kLODBias = 0.0f,
 			};
 		}

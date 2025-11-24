@@ -191,6 +191,7 @@ CBUFFER_START(SolverCBuffer)
     uint _SolverLODMethod;
     float _SolverLODCeiling;
     float _SolverLODScale;
+    float _SolverLODClusterSizeTarget;
     float _SolverLODBias;
     uint _SolverFeatures;
     float _DT;
