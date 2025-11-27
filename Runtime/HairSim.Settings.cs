@@ -34,7 +34,7 @@ namespace Unity.DemoTeam.Hair
 			public StrandScale strandScale;
 			[ToggleGroup, Tooltip("Override strand length (otherwise supplied by group asset)")]
 			public bool strandLength;
-			[ToggleGroupItem, Range(0.001f, 5.0f), Tooltip("Strand length (in meters)")]
+			[ToggleGroupItem, Range(0.001f, 30.0f), Tooltip("Strand length (in meters)")]
 			public float strandLengthValue;
 			[ToggleGroup, Tooltip("Override strand diameter (otherwise supplied by group asset)")]
 			public bool strandDiameter;
