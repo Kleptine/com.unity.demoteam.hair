@@ -1,4 +1,4 @@
-﻿#pragma use_dxc // This shader takes 30 seconds to compile if you don't use DXC!
+﻿// #pragma use_dxc // This shader takes 30 seconds to compile if you don't use DXC!
 
 // #pragma enable_d3d11_debug_symbols
 
