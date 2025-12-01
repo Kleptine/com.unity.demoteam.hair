@@ -70,7 +70,7 @@ namespace Unity.DemoTeam.Hair
 			{
 				foreach (var hairInstance in HairInstance.s_instances)
 				{
-					if (hairInstance != null && hairInstance.isActiveAndEnabled)
+					if (hairInstance != null && hairInstance.isActiveAndEnabled && hairInstance.gameObject.sceneCullingMask != 0)
 						hairInstance.DispatchDraw(cmd, CommandBufferExecutionFlags.None);
 				}
 			}
