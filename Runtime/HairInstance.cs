@@ -228,6 +228,11 @@ namespace Unity.DemoTeam.Hair
 
 		void OnEnable()
 		{
+#if UNITY_EDITOR
+			// Asset Import Workers don't have Resources system initialized
+			if (UnityEditor.AssetDatabase.IsAssetImportWorkerProcess())
+				return;
+#endif
 			VersionedDataUtility.HandleVersionChange(this);
 
 			UpdateStrandGroupInstances();
@@ -239,6 +244,11 @@ namespace Unity.DemoTeam.Hair
 
 		void OnDisable()
 		{
+#if UNITY_EDITOR
+			// Asset Import Workers don't have Resources system initialized
+			if (UnityEditor.AssetDatabase.IsAssetImportWorkerProcess())
+				return;
+#endif
 			ReleaseRuntimeData();
 			ReleasePrerequisite();
 

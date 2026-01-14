@@ -192,6 +192,14 @@ namespace Unity.DemoTeam.Hair
 		{
 			if (s_initialized == false)
 			{
+#if UNITY_EDITOR
+				// Asset Import Workers don't have Resources system initialized
+				if (UnityEditor.AssetDatabase.IsAssetImportWorkerProcess())
+				{
+					s_initialized = true; // Prevent repeated attempts
+					return;
+				}
+#endif
 				s_runtimeFlags = RuntimeFlags.None;
 				{
 					switch (SystemInfo.graphicsDeviceType)
@@ -479,6 +487,11 @@ namespace Unity.DemoTeam.Hair
 
 		public static void ReleaseVolumeData(ref VolumeData volumeData)
 		{
+#if UNITY_EDITOR
+			// Asset Import Workers don't have Resources system initialized
+			if (UnityEditor.AssetDatabase.IsAssetImportWorkerProcess())
+				return;
+#endif
 			ref var volumeBuffers = ref volumeData.buffers;
 			ref var volumeTextures = ref volumeData.textures;
 
